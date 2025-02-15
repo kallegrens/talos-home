@@ -31,7 +31,6 @@ spec:
     keepHistory: false
   values:
     TZ: Europe/Stockholm
-
     ingress:
       main:
         enabled: true
@@ -43,21 +42,8 @@ spec:
             certificateIssuer: domain-0-le-prod
         hosts:
           - host: ceevee.${DOMAIN_0}
-            # paths:
-            #   - path: /
-            #     pathType: Prefix
-
     persistence:
       config:
         type: nfs
         path: /mnt/nvme_mirror/websites/Ceevee-2
         server: ${NFS_IP}
-
-    # workload:
-    #   main:
-    #     podSpec:
-    #       containers:
-    #         main:
-    #           env:
-    #             SERVER_PORT: "{{ .Values.service.main.ports.main.port }}"
-    #             SERVER_ROOT: "/dynmap"
