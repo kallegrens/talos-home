@@ -25,8 +25,6 @@ spec:
     remediation:
       retries: 3
   values:
-    global:
-      stopAll: false
     ingress:
       main:
         enabled: true

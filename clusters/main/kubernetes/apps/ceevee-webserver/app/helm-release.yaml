@@ -32,25 +32,20 @@ spec:
   values:
     TZ: Europe/Stockholm
 
-    global:
-      stopAll: false
-
     ingress:
       main:
         enabled: true
         integrations:
           traefik:
             enabled: true
-            entrypoints:
-              - websecure
           certManager:
             enabled: true
             certificateIssuer: domain-0-le-prod
         hosts:
           - host: ceevee.${DOMAIN_0}
-            paths:
-              - path: /
-                pathType: Prefix
+            # paths:
+            #   - path: /
+            #     pathType: Prefix
 
     persistence:
       config:
