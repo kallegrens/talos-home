@@ -1,0 +1,54 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ipmi-external-service
+  namespace: external-service
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: external-service
+      version: 15.6.2
+      sourceRef:
+        kind: HelmRepository
+        name: truecharts
+        namespace: flux-system
+      interval: 15m
+  timeout: 20m
+  maxHistory: 3
+  driftDetection:
+    mode: warn
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    TZ: Europe/Stockholm
+    service:
+      main:
+        enabled: true
+        externalIP: ${IPMI_IP}
+        ports:
+          main:
+            enabled: true
+            port: 443
+            protocol: https
+        type: ExternalIP
+    ingress:
+      main:
+        enabled: true
+        integrations:
+          traefik:
+            enabled: true
+          certManager:
+            enabled: true
+            certificateIssuer: domain-0-le-prod
+        hosts:
+          - host: ipmi.${DOMAIN_0}
