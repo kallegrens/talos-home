@@ -4,3 +4,4 @@ resources:
   - kubernetes-dashboard/ks.yaml
   - librespeed/ks.yaml
   - ceevee-webserver/ks.yaml
+  - cloudflareddns/ks.yaml
