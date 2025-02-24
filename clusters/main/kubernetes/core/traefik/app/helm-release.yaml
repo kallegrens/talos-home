@@ -38,3 +38,14 @@ spec:
     service:
       tcp:
         loadBalancerIP: ${TRAEFIK_IP}
+    ingress:
+      main:
+        enabled: true
+        integrations:
+          traefik:
+            enabled: true
+          certManager:
+            enabled: true
+            certificateIssuer: domain-0-le-prod
+        hosts:
+          - host: traefik.${DOMAIN_0}
