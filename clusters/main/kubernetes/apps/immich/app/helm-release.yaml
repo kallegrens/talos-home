@@ -56,10 +56,10 @@ spec:
         type: nfs
         path: /mnt/lundgrens_data/immich/profiles
         server: ${NFS_IP}
-      video:
-        type: nfs
-        path: /mnt/lundgrens_data/immich/encoded-videos
-        server: ${NFS_IP}
+      # video:
+      #   type: nfs
+      #   path: /mnt/lundgrens_data/immich/encoded-videos
+      #   server: ${NFS_IP}
     addons:
       codeserver:
         enabled: true
