@@ -63,13 +63,21 @@ spec:
     addons:
       codeserver:
         enabled: true
-        ingress:
-          enabled: true
-          integrations:
-            traefik:
-              enabled: true
-            certManager:
-              enabled: true
-              certificateIssuer: domain-0-le-prod
-          hosts:
-            - host: immich-code.${DOMAIN_0}
+        # ingress:
+        #   enabled: true
+        #   integrations:
+        #     traefik:
+        #       enabled: true
+        #     certManager:
+        #       enabled: true
+        #       certificateIssuer: domain-0-le-prod
+        #   hosts:
+        #     - host: immich-code.${DOMAIN_0}
+        service:
+          # -- Enable a service for the code-server add-on.
+          type: "LoadBalancer"
+          loadBalancerIP: "192.168.50.219"
+          # Specify the default port information
+          ports:
+            codeserver:
+              port: 12321
