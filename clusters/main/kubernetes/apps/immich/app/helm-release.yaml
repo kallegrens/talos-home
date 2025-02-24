@@ -60,17 +60,17 @@ spec:
         type: nfs
         path: /mnt/lundgrens_data/immich/encoded-videos
         server: ${NFS_IP}
-    addons:
-      codeserver:
-        enabled: true
-        ingress:
-          main:
-            enabled: true
-            integrations:
-              traefik:
-                enabled: true
-              certManager:
-                enabled: true
-                certificateIssuer: domain-0-le-prod
-            hosts:
-              - host: immich-code.${DOMAIN_0}
+    # addons:
+    #   codeserver:
+    #     enabled: true
+    #     ingress:
+    #       main:
+    #         enabled: true
+    #         integrations:
+    #           traefik:
+    #             enabled: true
+    #           certManager:
+    #             enabled: true
+    #             certificateIssuer: domain-0-le-prod
+    #         hosts:
+    #           - host: immich-code.${DOMAIN_0}
