@@ -35,3 +35,20 @@ spec:
       defaultClass: true
       # Increase to 3 for a multi-node cluster
       defaultClassReplicaCount: 1
+    longhornUI:
+      replicas: 1
+    # service:
+    #   ui:
+    #     type: LoadBalancer
+    ingress:
+      enabled: true
+      host: longhorn.${DOMAIN_0}
+      pathType: Prefix
+      tls: true
+      tlsSecret: "longhorn-tls-0"
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.middlewares: traefik-chain-basic@kubernetescrd
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: domain-0-le-prod
+        cert-manager.io/private-key-rotation-policy: Always
