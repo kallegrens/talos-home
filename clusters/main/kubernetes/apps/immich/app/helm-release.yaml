@@ -62,15 +62,15 @@ spec:
         server: ${NFS_IP}
     addons:
       codeserver:
-        enabled: true
+        enabled: false
         ingress:
           main:
-            enabled: true
+            enabled: false
             integrations:
               traefik:
-                enabled: true
+                enabled: false
               certManager:
-                enabled: true
+                enabled: false
                 certificateIssuer: domain-0-le-prod
             hosts:
               - host: immich-code.${DOMAIN_0}
