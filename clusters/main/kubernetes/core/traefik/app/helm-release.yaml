@@ -48,4 +48,4 @@ spec:
             enabled: true
             certificateIssuer: domain-0-le-prod
         hosts:
-          - host: traefik.${DOMAIN_0}
+          - host: traefik-talos.${DOMAIN_0}
