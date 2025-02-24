@@ -47,19 +47,19 @@ spec:
         pgVersion: 15
         cluster:
           singleNode: true
-    persistence:
-      library:
-        type: nfs
-        path: /mnt/lundgrens_data/immich/default-library
-        server: ${NFS_IP}
-      profile:
-        type: nfs
-        path: /mnt/lundgrens_data/immich/profiles
-        server: ${NFS_IP}
-      video:
-        type: nfs
-        path: /mnt/lundgrens_data/immich/encoded-videos
-        server: ${NFS_IP}
+    # persistence:
+    #   library:
+    #     type: nfs
+    #     path: /mnt/lundgrens_data/immich/default-library
+    #     server: ${NFS_IP}
+    #   profile:
+    #     type: nfs
+    #     path: /mnt/lundgrens_data/immich/profiles
+    #     server: ${NFS_IP}
+    #   video:
+    #     type: nfs
+    #     path: /mnt/lundgrens_data/immich/encoded-videos
+    #     server: ${NFS_IP}
     addons:
       codeserver:
         enabled: true
