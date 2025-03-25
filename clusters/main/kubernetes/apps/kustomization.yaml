@@ -9,3 +9,4 @@ resources:
   - router-external-service/ks.yaml
   - pgadmin/ks.yaml
   - immich/ks.yaml
+  - makemkv/ks.yaml
