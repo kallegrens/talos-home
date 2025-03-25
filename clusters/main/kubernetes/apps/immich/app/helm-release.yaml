@@ -39,7 +39,7 @@ spec:
             enabled: true
           certManager:
             enabled: true
-            certificateIssuer: domain-0-le-prod
+            certificateIssuer: domain-0-le-staging
         hosts:
           - host: immich-talos.${DOMAIN_0}
     cnpg:
