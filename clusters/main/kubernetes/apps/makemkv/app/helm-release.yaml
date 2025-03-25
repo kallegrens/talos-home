@@ -41,7 +41,7 @@ spec:
             enabled: true
           certManager:
             enabled: true
-            certificateIssuer: domain-0-le-prod
+            certificateIssuer: domain-0-le-staging
         hosts:
           - host: makemkv.${DOMAIN_0}
     persistence:
@@ -55,7 +55,7 @@ spec:
         hostPathType: BlockDevice
         hostPath: /dev/sr0
         mountPath: /dev/sr0
-        readOnly: true
+        # readOnly: true
     makemkv:
       KEEP_APP_RUNNING: true
       DARK_MODE: true
