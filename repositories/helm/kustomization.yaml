@@ -24,7 +24,6 @@ resources:
   - piraeus.yaml
   - postfinance.yaml
   - prometheus-community.yaml
-  - spegel.yaml
   - stakater.yaml
   - topolvm.yaml
   - truecharts.yaml
