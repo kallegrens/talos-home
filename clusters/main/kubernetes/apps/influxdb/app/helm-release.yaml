@@ -78,15 +78,15 @@ spec:
               probes:
                 liveness:
                   enabled: true
-                  type: HTTP
+                  type: http
                   port: 8086
                 readiness:
                   enabled: true
-                  type: HTTP
+                  type: http
                   port: 8086
                 startup:
                   enabled: true
-                  type: HTTP
+                  type: http
                   port: 8086
 
     service:
