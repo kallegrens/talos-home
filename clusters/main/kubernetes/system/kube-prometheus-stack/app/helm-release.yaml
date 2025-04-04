@@ -24,55 +24,40 @@ spec:
     remediation:
       retries: 3
   values:
-    crds:
-      enabled: true
-      upgradeJob:
-        enabled: true
-        forceConflicts: true
-    prometheusOperator:
-      enabled: false
-    ## Everything down here, explicitly disables everything except CRDs and grafana dashboards
-    global:
-      rbac:
-        create: false
-    defaultRules:
-      create: false
-    windowsMonitoring:
-      enabled: false
-    prometheus-windows-exporter:
-      prometheus:
-        monitor:
-          enabled: false
-    alertmanager:
-      enabled: false
     grafana:
       enabled: false
       forceDeployDashboards: true
       defaultDashboardsEnabled: true
       forceDeployDatasources: true
-    kubernetesServiceMonitors:
+    crds:
       enabled: true
-    kubeApiServer:
-      enabled: false
-    kubelet:
-      enabled: false
-    kubeControllerManager:
-      enabled: false
-    coreDns:
-      enabled: false
-    kubeDns:
-      enabled: false
-    kubeEtcd:
-      enabled: false
-    kubeScheduler:
+      upgradeJob:
+        enabled: true
+        forceConflicts: true
+    cleanPrometheusOperatorObjectNames: true
+    alertmanager:
       enabled: false
     kubeProxy:
       enabled: false
-    kubeStateMetrics:
-      enabled: false
-    nodeExporter:
-      enabled: false
+    kubeEtcd:
+      service:
+        selector:
+          component: kube-apiserver # etcd runs on control plane nodes
     prometheus:
-      enabled: false
-    thanosRuler:
-      enabled: false
+      prometheusSpec:
+        podMonitorSelectorNilUsesHelmValues: false
+        probeSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+        scrapeConfigSelectorNilUsesHelmValues: false
+        serviceMonitorSelectorNilUsesHelmValues: false
+        enableAdminAPI: true
+        walCompression: true
+        enableFeatures:
+          - memory-snapshot-on-shutdown
+        retention: 14d
+        retentionSize: 50GB
+        resources:
+          requests:
+            cpu: 100m
+          limits:
+            memory: 2000Mi
