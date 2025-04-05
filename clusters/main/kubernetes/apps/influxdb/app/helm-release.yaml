@@ -35,30 +35,8 @@ spec:
     TZ: Europe/Stockholm
     image:
       repository: influxdb
-      tag: "2"
+      tag: "2.7.11"
       pullPolicy: IfNotPresent
-
-    securityContext:
-      container:
-        runAsUser: 568
-        runAsGroup: 568
-        readOnlyRootFilesystem: false
-        allowPrivilegeEscalation: false
-        privileged: false
-        seccompProfile:
-          type: RuntimeDefault
-        capabilities:
-          add: []
-          drop:
-            - ALL
-          disableS6Caps: false
-        PUID: 568
-        UMASK: "0022"
-      pod:
-        fsGroup: 568
-        fsGroupChangePolicy: OnRootMismatch
-        supplementalGroups: []
-        sysctls: []
 
     workload:
       main:
@@ -69,12 +47,12 @@ spec:
         podSpec:
           containers:
             main:
-              # env:
-              #   DOCKER_INFLUXDB_INIT_MODE: setup
-              #   DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB.INIT_USERNAME}
-              #   DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB.INIT_PASSWORD}
-              #   DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB.INIT_ORG}
-              #   DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB.INIT_BUCKET}
+              env:
+                DOCKER_INFLUXDB_INIT_MODE: setup
+                DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_ADMIN_NAME}
+                DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_ADMIN_PASSWORD}
+                DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORGANIZATION}
+                DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET}
               probes:
                 liveness:
                   enabled: true
