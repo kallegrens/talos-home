@@ -58,14 +58,17 @@ spec:
                   enabled: true
                   type: http
                   port: 8181
+                  path: "/health"
                 readiness:
                   enabled: true
                   type: http
                   port: 8181
+                  path: "/health"
                 startup:
                   enabled: true
                   type: http
                   port: 8181
+                  path: "/health"
 
     securityContext:
       container:
@@ -82,6 +85,8 @@ spec:
         ports:
           main:
             port: 8181 # Default InfluxDB3 port
+            targetPort: 8181
+            protocol: http
 
     ingress:
       main:
