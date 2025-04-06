@@ -11,4 +11,3 @@ resources:
   - immich/ks.yaml
   - makemkv/ks.yaml
   - influxdb/ks.yaml
-  - influxdb3/ks.yaml
