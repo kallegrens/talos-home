@@ -35,7 +35,7 @@ spec:
     TZ: Europe/Stockholm
     image:
       repository: quay.io/influxdb/influxdb3-core
-      tag: latest@sha256:be41392a8f6a4a3579e2f64462a0068617d45d28140ed1afbd5de1de9f7d5d64
+      tag: latest@sha256:5ae180c422e263af1b512c0170606ead0cad35766e43e6d2792aa4213a4c56ae
       pullPolicy: IfNotPresent
 
     workload:
