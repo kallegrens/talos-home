@@ -49,13 +49,13 @@ spec:
       movies:
         enabled: true
         type: nfs
-        server: 192.168.50.11
+        server: ${NFS_IP}
         path: /mnt/lundgrens_data/plex-media/Movies
         mountPath: /data/movies
       series:
         enabled: true
         type: nfs
-        server: 192.168.50.11
+        server: ${NFS_IP}
         path: /mnt/lundgrens_data/plex-media/TV-Shows
         mountPath: /data/series
 
