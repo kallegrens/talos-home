@@ -41,7 +41,7 @@ spec:
             enabled: true
           certManager:
             enabled: true
-            certificateIssuer: domain-0-le-staging
+            certificateIssuer: domain-0-le-prod
         hosts:
           - host: jellyfin.${DOMAIN_0}
 
