@@ -1,0 +1,63 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: jellyfin
+  namespace: jellyfin
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: jellyfin
+      version: 20.6.18
+      sourceRef:
+        kind: HelmRepository
+        name: truecharts
+        namespace: flux-system
+      interval: 15m
+  timeout: 20m
+  maxHistory: 3
+  driftDetection:
+    mode: warn
+  install:
+    createNamespace: true
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    TZ: Europe/Stockholm
+
+    ingress:
+      main:
+        enabled: true
+        integrations:
+          traefik:
+            enabled: true
+          certManager:
+            enabled: true
+            certificateIssuer: domain-0-le-prod
+        hosts:
+          - host: jellyfin.${DOMAIN_0}
+
+    persistence:
+      movies:
+        enabled: true
+        type: nfs
+        server: 192.168.50.11
+        path: /mnt/lundgrens_data/plex-media/Movies
+        mountPath: /data/movies
+      series:
+        enabled: true
+        type: nfs
+        server: 192.168.50.11
+        path: /mnt/lundgrens_data/plex-media/TV-Shows
+        mountPath: /data/series
+
+    autodiscovery:
+      enabled: true

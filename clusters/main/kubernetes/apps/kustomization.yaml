@@ -13,3 +13,4 @@ resources:
   - influxdb3/ks.yaml
   - tailscale/ks.yaml
   - influxdb/ks.yaml
+  - jellyfin/ks.yaml
