@@ -8,7 +8,6 @@ resources:
   - librespeed/ks.yaml
   - router-external-service/ks.yaml
   - pgadmin/ks.yaml
-  - immich/ks.yaml
   - makemkv/ks.yaml
   - influxdb3/ks.yaml
   - tailscale/ks.yaml
