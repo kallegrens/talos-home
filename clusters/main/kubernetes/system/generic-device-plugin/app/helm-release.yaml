@@ -9,7 +9,7 @@ spec:
     spec:
       # renovate: registryUrl=https://charts.truechartsoci.org
       chart: generic-device-plugin
-      version: 1.2.0
+      version: 1.3.3
       sourceRef:
         kind: HelmRepository
         name: truecharts
@@ -25,3 +25,20 @@ spec:
     remediation:
       retries: 3
   values:
+    workload:
+      main:
+        podSpec:
+          containers:
+            main:
+              # Override the arguments to define the Blu-ray device
+              args:
+                - --domain
+                - truecharts.org # Keep or change domain as needed
+                - --device
+                - |
+                  name: bluray   # Resource name suffix
+                  groups:
+                    - count: 1  # Expect 1 drive per node
+                      paths:
+                        - path: /dev/sr0
+                        - path: /dev/sg5
