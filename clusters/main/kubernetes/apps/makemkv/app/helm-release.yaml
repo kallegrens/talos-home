@@ -31,8 +31,7 @@ spec:
     keepHistory: false
   values:
     TZ: Europe/Stockholm
-    global:
-      stopAll: false
+
     ingress:
       main:
         enabled: true
@@ -41,9 +40,10 @@ spec:
             enabled: true
           certManager:
             enabled: true
-            certificateIssuer: domain-0-le-staging
+            certificateIssuer: domain-0-le-prod
         hosts:
           - host: makemkv.${DOMAIN_0}
+
     persistence:
       output:
         type: nfs
@@ -52,10 +52,11 @@ spec:
       bluray:
         enabled: true
         type: device
-        #hostPathType: BlockDevice
+        hostPathType: BlockDevice
         hostPath: /dev/sr0
-        # mountPath: /dev/sr0
+        mountPath: /bluray/sr0
         # readOnly: true
+
     makemkv:
       KEEP_APP_RUNNING: true
       DARK_MODE: true
