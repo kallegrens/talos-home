@@ -5,17 +5,6 @@ metadata:
   name: makemkv
   namespace: makemkv
 spec:
-  # postRenderers:
-  #   - kustomize:
-  #       patches:
-  #         - target:
-  #             version: v1
-  #             kind: Deployment
-  #             name: makemkv
-  #           patch: |
-  #             - op: add
-  #               path: /spec/template/spec/containers/0/resources/limits/truecharts.org~1bluray
-  #               value: 1
   interval: 15m
   chart:
     spec:
@@ -42,11 +31,6 @@ spec:
     keepHistory: false
   values:
     TZ: Europe/Stockholm
-
-    # Add privileged security context
-    # securityContext:
-    #   containers:
-    #       privileged: true
 
     ingress:
       main:
@@ -76,18 +60,15 @@ spec:
       DISPLAY_WIDTH: 1920
       DISPLAY_HEIGHT: 1080
 
-    # resources:
-    #   limits:
-    #     truecharts.org/bluray: 1
-
     workload:
       main:
-        podSpec:      
+        podSpec:
           containers:
             main:
               resources:
                 limits:
                   truecharts.org/bluray: 1
+
     securityContext:
       container:
         PUID: 0
