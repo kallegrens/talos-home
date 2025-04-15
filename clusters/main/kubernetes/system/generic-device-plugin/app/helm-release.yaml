@@ -40,4 +40,4 @@ spec:
                     - count: 1
                       paths:
                         - path: /dev/sr0
-                        - path: /dev/sg5
+                        - path: /dev/sg0
