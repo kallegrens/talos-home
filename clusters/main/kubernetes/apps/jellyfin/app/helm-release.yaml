@@ -61,3 +61,8 @@ spec:
 
     autodiscovery:
       enabled: true
+
+    resources:
+      limits:
+        cpu: 6000m
+        memory: 8Gi
