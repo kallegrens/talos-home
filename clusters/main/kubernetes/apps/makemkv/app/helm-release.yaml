@@ -5,17 +5,17 @@ metadata:
   name: makemkv
   namespace: makemkv
 spec:
-  postRenderers:
-    - kustomize:
-        patches:
-          - target:
-              version: v1
-              kind: Deployment
-              name: makemkv
-            patch: |
-              - op: add
-                path: /spec/template/spec/containers/0/resources/limits/truecharts.org~1bluray
-                value: 1
+  # postRenderers:
+  #   - kustomize:
+  #       patches:
+  #         - target:
+  #             version: v1
+  #             kind: Deployment
+  #             name: makemkv
+  #           patch: |
+  #             - op: add
+  #               path: /spec/template/spec/containers/0/resources/limits/truecharts.org~1bluray
+  #               value: 1
   interval: 15m
   chart:
     spec:
@@ -43,6 +43,11 @@ spec:
   values:
     TZ: Europe/Stockholm
 
+    # Add privileged security context
+    # securityContext:
+    #   containers:
+    #       privileged: true
+
     ingress:
       main:
         enabled: true
@@ -60,18 +65,6 @@ spec:
         type: nfs
         server: ${NFS_IP}
         path: /mnt/lundgrens_data/plex-media/Unindexed
-      # blurayDevice:
-      #   enabled: true
-      #   type: device
-      #   hostPathType: BlockDevice
-      #   hostPath: /dev/sr0
-      #   mountPath: /dev/sr0
-      # blurayGeneric:
-      #   enabled: true
-      #   type: device
-      #   hostPathType: CharDevice
-      #   hostPath: /dev/sg5
-      #   mountPath: /dev/sg5
 
     makemkv:
       KEEP_APP_RUNNING: true
@@ -83,8 +76,18 @@ spec:
       DISPLAY_WIDTH: 1920
       DISPLAY_HEIGHT: 1080
 
-    resources:
-      limits:
-        truecharts.org/bluray: 1
-      # requests:
-      #   truecharts.org/bluray: 1
+    # resources:
+    #   limits:
+    #     truecharts.org/bluray: 1
+
+    workload:
+      main:
+        podSpec:      
+          containers:
+            main:
+              resources:
+                limits:
+                  truecharts.org/bluray: 1
+    securityContext:
+      container:
+        PUID: 0
