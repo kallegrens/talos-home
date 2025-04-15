@@ -5,35 +5,35 @@ metadata:
   name: makemkv
   namespace: makemkv
 spec:
-  # postRenderers:
-  #   - kustomize:
-  #       patches:
-  #         # Patch 1: Add the resource limit for the bluray device
-  #         - target:
-  #             version: v1
-  #             # IMPORTANT: Change 'Deployment' if MakeMKV uses a StatefulSet or other kind
-  #             kind: Deployment
-  #             # IMPORTANT: Change 'makemkv' to the exact name of your MakeMKV Deployment/StatefulSet
-  #             name: makemkv
-  #           patch: |
-  #             - op: add
-  #               # IMPORTANT: Change '0' if your MakeMKV container is not the first one (e.g., '1')
-  #               # Note: truecharts.org~1bluray is the JSON patch encoding for "truecharts.org/bluray"
-  #               path: /spec/template/spec/containers/0/resources/limits/truecharts.org~1bluray
-  #               value: 1 # Request 1 unit of the bluray device
+  postRenderers:
+    - kustomize:
+        patches:
+          # Patch 1: Add the resource limit for the bluray device
+          - target:
+              version: v1
+              # IMPORTANT: Change 'Deployment' if MakeMKV uses a StatefulSet or other kind
+              kind: Deployment
+              # IMPORTANT: Change 'makemkv' to the exact name of your MakeMKV Deployment/StatefulSet
+              name: makemkv
+            patch: |
+              - op: add
+                # IMPORTANT: Change '0' if your MakeMKV container is not the first one (e.g., '1')
+                # Note: truecharts.org~1bluray is the JSON patch encoding for "truecharts.org/bluray"
+                path: /spec/template/spec/containers/0/resources/limits/truecharts.org~1bluray
+                value: 1 # Request 1 unit of the bluray device
 
-  #         # Patch 2: Add the resource request for the bluray device (Recommended)
-  #         - target:
-  #             version: v1
-  #             # IMPORTANT: Change 'Deployment' if MakeMKV uses a StatefulSet or other kind
-  #             kind: Deployment
-  #             # IMPORTANT: Change 'makemkv' to the exact name of your MakeMKV Deployment/StatefulSet
-  #             name: makemkv
-  #           patch: |
-  #             - op: add
-  #               # IMPORTANT: Change '0' if your MakeMKV container is not the first one (e.g., '1')
-  #               path: /spec/template/spec/containers/0/resources/requests/truecharts.org~1bluray
-  #               value: 1 # Request 1 unit of the bluray device
+          # Patch 2: Add the resource request for the bluray device (Recommended)
+          - target:
+              version: v1
+              # IMPORTANT: Change 'Deployment' if MakeMKV uses a StatefulSet or other kind
+              kind: Deployment
+              # IMPORTANT: Change 'makemkv' to the exact name of your MakeMKV Deployment/StatefulSet
+              name: makemkv
+            patch: |
+              - op: add
+                # IMPORTANT: Change '0' if your MakeMKV container is not the first one (e.g., '1')
+                path: /spec/template/spec/containers/0/resources/requests/truecharts.org~1bluray
+                value: 1 # Request 1 unit of the bluray device
   interval: 15m
   chart:
     spec:
