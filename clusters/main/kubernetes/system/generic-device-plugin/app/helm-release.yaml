@@ -30,15 +30,14 @@ spec:
         podSpec:
           containers:
             main:
-              # Override the arguments to define the Blu-ray device
               args:
                 - --domain
-                - truecharts.org # Keep or change domain as needed
+                - truecharts.org
                 - --device
                 - |
-                  name: bluray   # Resource name suffix
+                  name: bluray
                   groups:
-                    - count: 1  # Expect 1 drive per node
+                    - count: 1
                       paths:
                         - path: /dev/sr0
                         - path: /dev/sg5

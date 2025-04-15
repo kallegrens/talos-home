@@ -8,24 +8,17 @@ spec:
   postRenderers:
     - kustomize:
         patches:
-          # Patch 1: Add the resource limit for the bluray device
           - target:
               version: v1
-              # IMPORTANT: Change 'Deployment' if MakeMKV uses a StatefulSet or other kind
               kind: Deployment
-              # IMPORTANT: Change 'makemkv' to the exact name of your MakeMKV Deployment/StatefulSet
               name: makemkv
             patch: |
               - op: add
                 path: /spec/template/spec/containers/0/resources/limits/truecharts.org~1bluray
                 value: 1
-
-          # Patch 2: Add the resource request for the bluray device (Recommended)
           - target:
               version: v1
-              # IMPORTANT: Change 'Deployment' if MakeMKV uses a StatefulSet or other kind
               kind: Deployment
-              # IMPORTANT: Change 'makemkv' to the exact name of your MakeMKV Deployment/StatefulSet
               name: makemkv
             patch: |
               - op: add
@@ -108,3 +101,8 @@ spec:
                   truecharts.org/bluray: 1
                 requests:
                   truecharts.org/bluray: 1
+    resources:
+      limits:
+        truecharts.org/bluray: 1
+      requests:
+        truecharts.org/bluray: 1
