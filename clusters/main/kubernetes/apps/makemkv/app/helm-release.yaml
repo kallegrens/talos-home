@@ -49,13 +49,18 @@ spec:
         type: nfs
         server: ${NFS_IP}
         path: /mnt/lundgrens_data/plex-media/Unindexed
-      bluray:
+      blurayDevice:
         enabled: true
         type: device
         hostPathType: BlockDevice
         hostPath: /dev/sr0
-        mountPath: /bluray/sr0
-        # readOnly: true
+        mountPath: /dev/sr0
+      blurayGeneric:
+        enabled: true
+        type: device
+        hostPathType: CharDevice
+        hostPath: /dev/sg5
+        mountPath: /dev/sg5
 
     makemkv:
       KEEP_APP_RUNNING: true
