@@ -17,10 +17,8 @@ spec:
               name: makemkv
             patch: |
               - op: add
-                # IMPORTANT: Change '0' if your MakeMKV container is not the first one (e.g., '1')
-                # Note: truecharts.org~1bluray is the JSON patch encoding for "truecharts.org/bluray"
                 path: /spec/template/spec/containers/0/resources/limits/truecharts.org~1bluray
-                value: 1 # Request 1 unit of the bluray device
+                value: 1
 
           # Patch 2: Add the resource request for the bluray device (Recommended)
           - target:
@@ -31,9 +29,8 @@ spec:
               name: makemkv
             patch: |
               - op: add
-                # IMPORTANT: Change '0' if your MakeMKV container is not the first one (e.g., '1')
                 path: /spec/template/spec/containers/0/resources/requests/truecharts.org~1bluray
-                value: 1 # Request 1 unit of the bluray device
+                value: 1
   interval: 15m
   chart:
     spec:
