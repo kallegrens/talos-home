@@ -56,6 +56,6 @@ spec:
         enabled: true
         type: nfs
         path: /mnt/lundgrens_data/syncthing
-        mountPath: /var/syncthing/hemserver
+        mountPath: /var/syncthing
         server: ${NFS_IP}
       
