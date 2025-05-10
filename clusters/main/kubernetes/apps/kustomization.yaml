@@ -7,7 +7,6 @@ resources:
   - kubernetes-dashboard/ks.yaml
   - librespeed/ks.yaml
   - router-external-service/ks.yaml
-  - pgadmin/ks.yaml
   - makemkv/ks.yaml
   - tailscale/ks.yaml
   - influxdb/ks.yaml
