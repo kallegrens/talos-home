@@ -34,6 +34,6 @@ spec:
     tailscale:
       authkey: ${TAILSCALE_KEY}
       accept_dns: true
-      routes: 192.168.50.0/24
+      routes: ${HOME_IP_RANGE}/24
       hostname: "talos-tailscale"
       advertise_as_exit_node: true
