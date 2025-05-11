@@ -51,4 +51,4 @@ spec:
     workload:
           main:
             podSpec:
-              hostUsers: false
+              hostUsers: true
