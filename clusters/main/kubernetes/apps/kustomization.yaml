@@ -12,3 +12,4 @@ resources:
   - jellyfin/ks.yaml
   - plex/ks.yaml
   - syncthing/ks.yaml
+  - ceevee-webserver/ks.yaml
