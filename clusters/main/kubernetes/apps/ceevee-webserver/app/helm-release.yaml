@@ -5,7 +5,6 @@ metadata:
   name: ceevee-webserver
   namespace: ceevee-webserver
 spec:
-  hostUsers: false
   interval: 15m
   chart:
     spec:
@@ -49,3 +48,5 @@ spec:
         type: nfs
         path: /mnt/nvme_mirror/websites/Ceevee-2
         server: ${NFS_IP}
+    podOptions:
+      hostUsers: true
