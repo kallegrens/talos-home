@@ -66,3 +66,5 @@ spec:
         path: /mnt/lundgrens_data/plex-media
         mountPath: /audiobooks
         server: ${NFS_IP}
+    podOptions:
+      hostUsers: true
