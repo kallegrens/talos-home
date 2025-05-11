@@ -43,6 +43,3 @@ spec:
             certificateIssuer: domain-0-le-prod
         hosts:
           - host: librespeed.${DOMAIN_0}
-            paths:
-              - path: /
-                pathType: Prefix
