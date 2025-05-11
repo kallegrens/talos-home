@@ -13,3 +13,4 @@ resources:
   - plex/ks.yaml
   - syncthing/ks.yaml
   - ceevee-webserver/ks.yaml
+  - switch-external-service/ks.yaml
