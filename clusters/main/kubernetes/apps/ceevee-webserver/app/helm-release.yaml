@@ -49,6 +49,6 @@ spec:
         path: /mnt/nvme_mirror/websites/Ceevee-2
         server: ${NFS_IP}
     workload:
-          main:
-            podSpec:
-              hostUsers: true
+      main:
+        podSpec:
+          hostUsers: false
