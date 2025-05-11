@@ -5,10 +5,10 @@ metadata:
   name: ceevee-webserver
   namespace: ceevee-webserver
 spec:
-  hostUsers: false
   interval: 15m
   chart:
     spec:
+      hostUsers: false
       chart: static-web-server
       version: 6.10.1
       sourceRef:
