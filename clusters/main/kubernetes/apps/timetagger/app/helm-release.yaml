@@ -31,6 +31,13 @@ spec:
     keepHistory: false
   values:
     TZ: Europe/Stockholm
+    workload:
+      main:
+        podSpec:
+          containers:
+            main:
+              env:
+                TIMETAGGER_CREDENTIALS: ${TIMETAGGER_CREDENTIALS}
     ingress:
       main:
         enabled: true
