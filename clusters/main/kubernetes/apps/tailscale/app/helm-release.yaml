@@ -18,7 +18,7 @@ spec:
   timeout: 20m
   maxHistory: 3
   driftDetection:
-    mode: warn
+    mode: enabled
   install:
     createNamespace: true
     remediation:
@@ -33,7 +33,6 @@ spec:
     TZ: Europe/Stockholm
     tailscale:
       authkey: ${TAILSCALE_KEY}
-      accept_dns: true
       routes: ${HOME_IP_RANGE}/24
       hostname: "talos-tailscale"
       advertise_as_exit_node: true

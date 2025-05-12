@@ -15,3 +15,4 @@ resources:
   - ceevee-webserver/ks.yaml
   - switch-external-service/ks.yaml
   - truenas-external-service/ks.yaml
+  - timetagger/ks.yaml
