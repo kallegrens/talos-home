@@ -32,14 +32,14 @@ spec:
   values:
     TZ: Europe/Stockholm
     ingress:
-    main:
-      enabled: true
-      ingressClassName: external
-      integrations:
-        traefik:
-          enabled: false
-        certManager:
-          enabled: true
-          certificateIssuer: domain-0-le-prod
-      hosts:
-        - host: timetagger.${DOMAIN_0}
+      main:
+        enabled: true
+        ingressClassName: external
+        integrations:
+          traefik:
+            enabled: false
+          certManager:
+            enabled: true
+            certificateIssuer: domain-0-le-prod
+        hosts:
+          - host: timetagger.${DOMAIN_0}
