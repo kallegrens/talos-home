@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: timetagger
-      version: 8.7.1
+      version: 10.1.0
       sourceRef:
         kind: HelmRepository
         name: truecharts
