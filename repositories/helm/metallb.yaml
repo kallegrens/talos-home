@@ -3,9 +3,9 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: bjw-s
+  name: metallb
   namespace: flux-system
 spec:
   type: oci
-  interval: 5m
-  url: oci://ghcr.io/bjw-s-labs/helm
+  interval: 2h
+  url: oci://quay.io/metallb/chart
