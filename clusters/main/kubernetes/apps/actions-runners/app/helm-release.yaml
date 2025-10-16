@@ -37,7 +37,7 @@ spec:
     runnerScaleSetName: home-runners
     githubConfigUrl: ${GITHUB_CONFIG_URL}
     githubConfigSecret: arc-github-app-secret
-    minRunners: 1
+    minRunners: 0
     maxRunners: 4
 
     containerMode:
@@ -47,7 +47,7 @@ spec:
         storageClassName: longhorn
         resources:
           requests:
-            storage: 10Gi
+            storage: 25Gi
 
     template:
       metadata:
@@ -72,7 +72,7 @@ spec:
                 cpu: 500m
                 memory: 1Gi
               limits:
-                cpu: "2"
+                cpu: 2000m
                 memory: 4Gi
             securityContext:
               allowPrivilegeEscalation: false
