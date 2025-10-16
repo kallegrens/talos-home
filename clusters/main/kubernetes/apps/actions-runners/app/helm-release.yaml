@@ -12,7 +12,7 @@ spec:
     spec:
       chart: gha-runner-scale-set
       sourceRef:
-        kind: OCIRepository
+        kind: HelmRepository
         name: actions-runner-controller
         namespace: flux-system
       version: 0.12.1
