@@ -34,11 +34,17 @@ spec:
     keepHistory: false
 
   values:
-    # runnerScaleSetName: home-runners
+    labels:
+      - self-hosted
+      - linux
+      - amd64
+
+    runnerScaleSetName: home-runners
     githubConfigUrl: ${GITHUB_CONFIG_URL}
     githubConfigSecret: arc-github-app-secret
     minRunners: 1
     maxRunners: 4
+
 
     containerMode:
       type: kubernetes
@@ -54,6 +60,7 @@ spec:
         labels:
           runner: talos
       spec:
+        terminationGracePeriodSeconds: 10
         nodeSelector:
           kubernetes.io/arch: amd64
         securityContext:
@@ -64,6 +71,8 @@ spec:
             type: RuntimeDefault
         containers:
           - name: runner
+            image: ghcr.io/actions/actions-runner:2.328.0
+            imagePullPolicy: IfNotPresent
             resources:
               requests:
                 cpu: 500m
