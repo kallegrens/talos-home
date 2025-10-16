@@ -34,17 +34,11 @@ spec:
     keepHistory: false
 
   values:
-    labels:
-      - self-hosted
-      - linux
-      - amd64
-
     runnerScaleSetName: home-runners
     githubConfigUrl: ${GITHUB_CONFIG_URL}
     githubConfigSecret: arc-github-app-secret
     minRunners: 1
     maxRunners: 4
-
 
     containerMode:
       type: kubernetes
