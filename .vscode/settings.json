@@ -1,16 +1,17 @@
 {
-    "files.associations": {
-        "*.json5": "jsonc",
-        "./kubernetes/**/*.sops.toml": "plaintext"
-    },
-    "sops.defaults.ageKeyFile": "age.agekey",
-    "yaml.schemas": {
-        "Kubernetes": "./kubernetes/*.yaml"
-    },
-    "terminal.integrated.profiles.linux": {
-        "bash": {
-          "path": "/usr/bin/fish"
-        }
-      },
-    "terminal.integrated.defaultProfile.linux": "fish"
+  "files.associations": {
+    "*.json5": "jsonc",
+    "./kubernetes/**/*.sops.toml": "plaintext"
+  },
+  "sops.defaults.ageKeyFile": "age.agekey",
+  "yaml.schemas": {
+    "Kubernetes": "./kubernetes/*.yaml",
+    "https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json": "untitled:Untitled-2"
+  },
+  "terminal.integrated.profiles.linux": {
+    "bash": {
+      "path": "/usr/bin/fish"
+    }
+  },
+  "terminal.integrated.defaultProfile.linux": "fish"
 }
