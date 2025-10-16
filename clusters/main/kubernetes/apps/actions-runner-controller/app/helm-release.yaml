@@ -43,21 +43,11 @@ spec:
         cpu: 500m
         memory: 512Mi
 
-    authSecret:
-      create: false
-      name: arc-github-app-secret
-
-    githubWebhookServer:
-      enabled: true
-      secret:
-        enabled: true
-        create: false
-        name: arc-github-webhook-secret
-
     securityContext:
       runAsNonRoot: true
       runAsUser: 1000
       fsGroup: 1000
       readOnlyRootFilesystem: true
+
     podSecurityContext:
       fsGroup: 1000

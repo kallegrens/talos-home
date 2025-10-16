@@ -3,6 +3,3 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - helm-release.yaml
-  - ingress-webhook.yaml
-  - arc-github-webhook-secret.yaml
-  - arc-github-app-secret.yaml
