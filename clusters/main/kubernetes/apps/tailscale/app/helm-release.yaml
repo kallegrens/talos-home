@@ -19,6 +19,12 @@ spec:
   maxHistory: 3
   driftDetection:
     mode: enabled
+    ignore:
+      - target:
+          kind: Secret
+          name: tailscale-tailscale-secret
+        paths:
+          - /data
   install:
     createNamespace: true
     remediation:
