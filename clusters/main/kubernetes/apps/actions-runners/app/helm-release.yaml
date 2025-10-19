@@ -40,7 +40,7 @@ spec:
     runnerScaleSetName: home-runners
     githubConfigUrl: ${GITHUB_CONFIG_URL}
     githubConfigSecret: arc-github-app-secret
-    minRunners: 1
+    minRunners: 0
     maxRunners: 4
 
     containerMode:
