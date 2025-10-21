@@ -12,5 +12,5 @@ parameters:
   dataLocality: best-effort      # optional: better locality on single node
   disableRevisionCounter: "true" # match default SC
   staleReplicaTimeout: "30"
-  dataEngine: v1               # MANDATORY
+  dataEngine: "v1"               # MANDATORY
   # unmapMarkSnapChainRemoved: ignored  # only if you care to mirror it
