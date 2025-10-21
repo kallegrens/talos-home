@@ -7,5 +7,10 @@ allowVolumeExpansion: true
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 parameters:
-  numberOfReplicas: "1"       # tweak to your setup
+  numberOfReplicas: "1"          # single-node must be 1
+  fsType: ext4                   # match your default SC
+  dataLocality: best-effort      # optional: better locality on single node
+  disableRevisionCounter: "true" # match default SC
   staleReplicaTimeout: "30"
+  dataEngine: v1               # MANDATORY
+  # unmapMarkSnapChainRemoved: ignored  # only if you care to mirror it
