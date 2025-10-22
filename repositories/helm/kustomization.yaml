@@ -13,4 +13,5 @@ resources:
   - prometheus-community.yaml
   - spegel.yaml
   - truecharts.yaml
+  - actions-runner-controller.yaml
 # more goes here!
