@@ -78,6 +78,11 @@ spec:
             type: RuntimeDefault
         containers:
           - name: runner
+            env:
+              - name: RUNNER_DEBUG
+                value: "true"
+              - name: ACTIONS_RUNNER_HOOK_DEBUG
+                value: "true"
             image: ghcr.io/actions/actions-runner:2.329.0
             imagePullPolicy: IfNotPresent
             resources:
