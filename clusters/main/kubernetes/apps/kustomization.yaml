@@ -17,5 +17,3 @@ resources:
   - truenas-external-service/ks.yaml
   - timetagger/ks.yaml
   - automatic-ripping-machine/ks.yaml
-  - actions-runner-controller/ks.yaml
-  - actions-runners/ks.yaml
