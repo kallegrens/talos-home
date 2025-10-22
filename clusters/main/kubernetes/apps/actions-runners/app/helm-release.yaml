@@ -41,11 +41,11 @@ spec:
     githubConfigUrl: ${GITHUB_CONFIG_URL}
     githubConfigSecret: arc-github-app-secret
     minRunners: 1
-    maxRunners: 4
+    maxRunners: 1
 
     containerMode:
       type: kubernetes
-      kubernetesModeWorkVolumeClaim: # Only needed if you want to persist runner workspaces
+      kubernetesModeWorkVolumeClaim:
         accessModes: ["ReadWriteOnce"]
         storageClassName: longhorn-wffc
         resources:

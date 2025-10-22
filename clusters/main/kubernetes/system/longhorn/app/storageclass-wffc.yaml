@@ -8,7 +8,6 @@ reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 parameters:
   numberOfReplicas: "1"          # single-node must be 1
-  fsType: ext4                   # match your default SC
   dataLocality: best-effort      # optional: better locality on single node
   disableRevisionCounter: "true" # match default SC
   staleReplicaTimeout: "30"
