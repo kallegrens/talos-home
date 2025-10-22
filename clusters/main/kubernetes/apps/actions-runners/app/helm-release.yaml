@@ -42,6 +42,14 @@ spec:
     githubConfigSecret: arc-github-app-secret
     minRunners: 1
     maxRunners: 1
+    resourceMeta:
+      autoscalingRunnerSet:
+        annotations:
+          actions.github.com/cleanup-no-permission-service-account-name: home-runners-cleaner
+          actions.github.com/cleanup-github-secret-name: arc-github-app-secret
+    controllerServiceAccount:
+      namespace: actions-runner-system
+      name: gha-runner-scale-set-controller-gha-rs-controller
 
     containerMode:
       type: kubernetes
