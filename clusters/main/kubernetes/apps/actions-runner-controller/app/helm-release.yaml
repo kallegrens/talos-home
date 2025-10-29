@@ -34,7 +34,7 @@ spec:
     keepHistory: false
 
   values:
-    replicaCount: 1
+    replicaCount: 0
     resources:
       requests:
         cpu: 100m
