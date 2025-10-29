@@ -37,12 +37,11 @@ spec:
     keepHistory: false
 
   values:
-    replicaCount: 0
     runnerScaleSetName: home-runners
     githubConfigUrl: ${GITHUB_CONFIG_URL}
     githubConfigSecret: arc-github-app-secret
-    minRunners: 1
-    maxRunners: 1
+    minRunners: 0
+    maxRunners: 4
     resourceMeta:
       autoscalingRunnerSet:
         annotations:
