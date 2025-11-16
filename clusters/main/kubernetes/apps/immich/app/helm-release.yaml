@@ -1,0 +1,72 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich
+  namespace: immich
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: immich
+      version: 25.5.23
+      sourceRef:
+        kind: HelmRepository
+        name: truecharts
+        namespace: flux-system
+      interval: 15m
+  timeout: 20m
+  maxHistory: 3
+  driftDetection:
+    mode: warn
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    TZ: Europe/Stockholm
+
+    global:
+      stopAll: false
+
+    ingress:
+      main:
+        enabled: true
+        ingressClassName: external
+        integrations:
+          certManager:
+            enabled: true
+            certificateIssuer: domain-0-le-prod
+        hosts:
+          - host: immich.${DOMAIN_0}
+
+    persistence:
+      library:
+        type: nfs
+        server: ${NFS_IP}
+        path: /mnt/lundgrens_data/immich/library
+      uploads:
+        type: pvc
+      backups:
+        type: nfs
+        server: ${NFS_IP}
+        path: /mnt/lundgrens_data/immich/backups
+      thumbs:
+        type: pvc
+      profile:
+        type: pvc
+      video:
+        type: nfs
+        server: ${NFS_IP}
+        path: /mnt/lundgrens_data/immich/encoded-video
+
+    cnpg:
+      main:
+        cluster:
+          singleNode: true

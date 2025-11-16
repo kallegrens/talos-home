@@ -19,3 +19,4 @@ resources:
   - automatic-ripping-machine/ks.yaml
   - actions-runner-controller/ks.yaml
   - actions-runners/ks.yaml
+  - immich/ks.yaml
