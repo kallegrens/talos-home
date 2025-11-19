@@ -53,6 +53,15 @@ spec:
       machinelearning:
         podSpec:
           runtimeClassName: "nvidia"
+          containers:
+            immich:
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "4Gi"
+                limits:
+                  cpu: "4000m"
+                  memory: "10Gi"
 
     ingress:
       main:
