@@ -71,6 +71,8 @@ spec:
           - host: immich.${DOMAIN_0}
 
     persistence:
+      mlcache:
+        type: pvc
       library:
         type: nfs
         server: ${NFS_IP}
