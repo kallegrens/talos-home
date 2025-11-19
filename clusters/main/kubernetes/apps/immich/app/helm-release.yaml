@@ -35,6 +35,25 @@ spec:
     global:
       stopAll: false
 
+    immich:
+      enable_ml: true
+      mlImageType: mlCudaImage
+
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+
+    workload:
+      main:
+        podSpec:
+          runtimeClassName: "nvidia"
+      microservices:
+        podSpec:
+          runtimeClassName: "nvidia"
+      machinelearning:
+        podSpec:
+          runtimeClassName: "nvidia"
+
     ingress:
       main:
         enabled: true
