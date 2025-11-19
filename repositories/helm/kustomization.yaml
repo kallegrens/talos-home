@@ -14,5 +14,4 @@ resources:
   - spegel.yaml
   - truecharts.yaml
   - actions-runner-controller.yaml
-  - nvdp.yaml
 # more goes here!
