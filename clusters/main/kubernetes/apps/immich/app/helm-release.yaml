@@ -45,6 +45,7 @@ spec:
           runtimeClassName: "nvidia"
           containers:
             immich:
+              enabled: true
               resources:
                 limits:
                   nvidia.com/gpu: 1
@@ -53,6 +54,7 @@ spec:
           runtimeClassName: "nvidia"
           containers:
             immich:
+              enabled: true
               resources:
                 limits:
                   cpu: 4000m
@@ -63,6 +65,7 @@ spec:
           runtimeClassName: "nvidia"
           containers:
             immich:
+              enabled: true
               resources:
                 requests:
                   cpu: 500m
