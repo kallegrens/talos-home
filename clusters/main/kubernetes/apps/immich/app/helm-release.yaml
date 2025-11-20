@@ -52,7 +52,7 @@ spec:
         podSpec:
           runtimeClassName: "nvidia"
           containers:
-            main:
+            microservices:
               resources:
                 limits:
                   cpu: 4000m
@@ -62,7 +62,7 @@ spec:
         podSpec:
           runtimeClassName: "nvidia"
           containers:
-            main:
+            machinelearning:
               resources:
                 limits:
                   cpu: 6000m
