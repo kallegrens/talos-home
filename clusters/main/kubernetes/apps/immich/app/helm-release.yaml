@@ -39,25 +39,38 @@ spec:
       enable_ml: true
       mlImageType: mlCudaImage
 
-    resources:
-      requests:
-        cpu: 500m
-        memory: 4Gi
-      limits:
-        nvidia.com/gpu: 1
-        cpu: 6000m
-        memory: 10Gi
-
     workload:
       main:
         podSpec:
           runtimeClassName: "nvidia"
+          containers:
+            immich:
+              resources:
+                limits:
+                  nvidia.com/gpu: 1
       microservices:
         podSpec:
           runtimeClassName: "nvidia"
+          containers:
+            immich:
+              resources:
+                limits:
+                  cpu: 4000m
+                  memory: 3Gi
+                  nvidia.com/gpu: 1
       machinelearning:
         podSpec:
           runtimeClassName: "nvidia"
+          containers:
+            immich:
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                limits:
+                  cpu: 6000m
+                  memory: 8Gi
+                  nvidia.com/gpu: 1
 
     ingress:
       main:
