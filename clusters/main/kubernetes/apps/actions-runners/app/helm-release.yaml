@@ -18,7 +18,7 @@ spec:
         kind: HelmRepository
         name: actions-runner-controller
         namespace: flux-system
-      version: 0.13.0
+      version: 0.13.1
       interval: 15m
   maxHistory: 3
   driftDetection:
