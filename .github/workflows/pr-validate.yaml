@@ -1,0 +1,136 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: "Pull Request: Validate"
+
+on: # yamllint disable-line rule:truthy
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.head_ref }}-pr-validate
+  cancel-in-progress: true
+env:
+  KUBERNETES_DIR: ./clusters/main/kubernetes
+
+jobs:
+  kubeconform:
+    name: Kubeconform
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Homebrew
+        uses: Homebrew/actions/setup-homebrew@0da5e123f3a792967ae460199673d87e2bfa257d # v0.0.0
+      - name: Setup Workflow Tools
+        run: brew install fluxcd/tap/flux kubeconform kustomize
+      - name: Run kubeconform
+        shell: bash
+        run: bash ./.github/scripts/kubeconform.sh "${KUBERNETES_DIR}"
+
+  test:
+    name: Flux Local - Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - name: Run flux-local test
+        uses: docker://ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261 # yamllint disable-line rule:line-length
+        with:
+          args: >-
+            test
+            --all-namespaces
+            --enable-helm
+            --verbose
+
+  diff:
+    name: Flux Diff
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # Required to post PR comments with diff results
+    strategy:
+      matrix:
+        resources: ["helmrelease", "kustomization"]
+      max-parallel: 4
+      fail-fast: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          path: pull
+          persist-credentials: false
+      - name: Checkout Default Branch
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: "${{ github.event.repository.default_branch }}"
+          path: default
+          persist-credentials: false
+      - name: Diff Resources
+        uses: docker://ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261 # yamllint disable-line rule:line-length
+        with:
+          args: >-
+            diff ${{ matrix.resources }}
+            --unified 6
+            --path /github/workspace/pull/
+            --path-orig /github/workspace/default/
+            --strip-attrs "helm.sh/chart,checksum/config,checksum/redis,checksum/secrets,app.kubernetes.io/version,chart,app"
+            --limit-bytes 10000
+            --all-namespaces
+            --sources "cluster"
+            --output-file diff.patch
+      - name: Generate Diff
+        id: diff
+        env:
+          RESOURCE_TYPE: ${{ matrix.resources }}
+        run: |
+          {
+            echo 'diff<<EOF'
+            cat diff.patch
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Flux ${RESOURCE_TYPE} diff"
+            echo '```diff'
+            cat diff.patch
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - if: ${{ steps.diff.outputs.diff != '' }}
+        name: Add Comment
+        continue-on-error: true
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
+        with:
+          message-id: "${{ github.event.pull_request.number }}/kubernetes/${{ matrix.resources }}"
+          message-failure: Diff was not successful
+          message: |
+            ```diff
+            ${{ steps.diff.outputs.diff }}
+            ```
+
+  automerge-and-approve:
+    needs:
+      - kubeconform
+      - diff
+      - test
+    name: Automerge and Approve build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to merge PRs
+      pull-requests: write # Required to approve PRs
+    steps:
+      - name: automerge
+        uses: pascalgn/automerge-action@7961b8b5eec56cc088c140b56d864285eabd3f67 # v0.16.4
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          UPDATE_RETRIES: 12
+          UPDATE_RETRY_SLEEP: 60000
+          MERGE_METHOD: squash

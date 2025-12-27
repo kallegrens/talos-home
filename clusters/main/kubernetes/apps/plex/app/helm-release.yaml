@@ -34,9 +34,9 @@ spec:
     plex:
       # User Defined
       serverIP: ${PLEX_IP}
-      additionalAdvertiseURL: "" # https://${PLEX_IP}:32400,https://${PLEX_IP}:32400,http://plex.${DOMAIN_0}:32400,https://plex.${DOMAIN_0}:32400"
-    workload:
-      main:
+      additionalAdvertiseURL: "" # https://${PLEX_IP}:32400,
+    workload: # https://${PLEX_IP}:32400,http://plex.${DOMAIN_0}:32400,
+      main: # https://plex.${DOMAIN_0}:32400"
         podSpec:
           containers:
             main:

@@ -1,0 +1,55 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-case-conflict
+      - id: mixed-line-ending
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        exclude: |
+          (?x)(
+            .*\.values\.ya?ml$|
+            .*\.secret\.ya?ml$|
+            .*clusterenv\.yaml$|
+            .*talsecret\.yaml$
+          )
+        args:
+          - --config-data
+          - |
+            extends: default
+            rules:
+              line-length:
+                max: 120
+                level: warning
+              indentation:
+                spaces: 2
+                indent-sequences: true
+              comments:
+                min-spaces-from-content: 1
+              document-start: disable
+              truthy:
+                level: warning
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.9
+    hooks:
+      - id: actionlint-docker
+        args: [--verbose]
+        files: ^\.github/workflows/.*\.ya?ml$
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.18.0
+    hooks:
+      - id: zizmor
+        args: [--fix, --pedantic]
+        files: ^\.github/workflows/.*\.ya?ml$

@@ -6,7 +6,7 @@ metadata:
   namespace: arc-runners
 spec:
   podSelector: {}
-  policyTypes: ["Ingress","Egress"]
+  policyTypes: ["Ingress", "Egress"]
 
 ---
 # 2) Allow DNS to kube-dns so runners can resolve hosts

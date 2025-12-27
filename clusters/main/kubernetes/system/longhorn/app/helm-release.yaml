@@ -37,6 +37,3 @@ spec:
       defaultClassReplicaCount: 1
     longhornUI:
       replicas: 1
-    # service:
-    #   ui:
-    #     type: LoadBalancer

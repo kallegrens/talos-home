@@ -61,4 +61,3 @@ spec:
         path: /mnt/lundgrens_data/syncthing
         mountPath: /var/syncthing/data
         server: ${NFS_IP}
-      
