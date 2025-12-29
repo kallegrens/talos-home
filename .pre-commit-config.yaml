@@ -53,3 +53,12 @@ repos:
       - id: zizmor
         args: [--fix, --pedantic]
         files: ^\.github/workflows/.*\.ya?ml$
+
+  - repo: local
+    hooks:
+      - id: clustertool-encrypt
+        name: Encrypt secrets with SOPS (clustertool)
+        entry: precommit
+        language: system
+        pass_filenames: false
+        always_run: true

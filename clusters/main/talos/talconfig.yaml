@@ -43,8 +43,9 @@ nodes:
     installDiskSelector:
       size: <= 1600GB
     networkInterfaces:
-      # suffix is the adapter mac adres.
-      - interface: eth0
+      # Use deviceSelector to match NIC by driver (works regardless of interface naming)
+      - deviceSelector:
+          driver: virtio_net
         addresses:
           - ${MASTER1IP_CIDR}
         routes:
@@ -61,8 +62,6 @@ controlPlane:
     - name: uio_pci_generic
   schematic:
     customization:
-      extraKernelArgs:
-        - net.ifnames=0
       systemExtensions:
         officialExtensions:
           - siderolabs/util-linux-tools
