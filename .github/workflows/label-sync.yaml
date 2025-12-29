@@ -7,8 +7,6 @@ on: # yamllint disable-line rule:truthy
   push:
     branches: ["main"]
     paths: [".github/labels.yaml"]
-  schedule:
-    - cron: "30 * * * *" # Hourly
 
 permissions: {}
 
