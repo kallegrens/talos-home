@@ -10,3 +10,6 @@ sopssecret*
 *sopssecret*
 mounts/
 .DS_Store
+PROGRESS*
+clusters/main/talos/talenv.yaml
+*.log
