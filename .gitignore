@@ -13,3 +13,4 @@ mounts/
 PROGRESS*
 clusters/main/talos/talenv.yaml
 *.log
+*.txt
