@@ -58,6 +58,9 @@ GITHUB_CONFIG_URL: ENC[AES256_GCM,data:mSssVoqVx7/JxjrHBn7YPhsOYjXjT5Crafc+jhZvt
 ARC_GITHUB_APP_ID: ENC[AES256_GCM,data:hOY6tc4b1Q==,iv:vCkGQq/FcA2xxHEqzALnLgrLUmkBztPtRDUUqMazT9o=,tag:HQ+bG7wO1S2tEZ9Nd5KPhA==,type:str]
 ARC_GITHUB_APP_INSTALLATION_ID: ENC[AES256_GCM,data:izRIFePgc5U=,iv:yHFLCxW/BgVpJPN8VoW5aoF3Otn5d2DufzA2VMJwAO0=,tag:UC5AUE5o7KWNs3/Iv6ksBA==,type:str]
 GPU_REPLICAS: ENC[AES256_GCM,data:IA==,iv:1JbHqz6myOoIz9LHSRzEi/CmIdxCPY9NBsOddgtup/o=,tag:t9DA0xRAMmLFfN62oPxSyA==,type:str]
+PAPERLESS_ADMIN_USER: ENC[AES256_GCM,data:QjEQ3uoGC45ThtpAzDiD,iv:7lRa4ZXlSCG7I9zpbobX4EMQ2sijdms1tzDjs3/E1FY=,tag:AXfQKyl4x4S8G3WnqAAlhg==,type:str]
+PAPERLESS_ADMIN_PASSWORD: ENC[AES256_GCM,data:mOmxi0nj4Byhj7sy5NQ=,iv:g3VDhEfyuladlnpYZMdrKD9C6cay5Wub6fVnKCM4w/8=,tag:/sD0lpzYAokYKOfVlM19VA==,type:str]
+PAPERLESS_ADMIN_MAIL: ENC[AES256_GCM,data:vPs40ykKdPOvxObqBVszPtmKm1wmB6U=,iv:X49c/QUQzCauxC1DhggWNZcHQJ164vfloccCBY/hw30=,tag:Zx2K+FDbGTfd1GnsQUY6Rg==,type:str]
 sops:
     shamir_threshold: 3
     age:
@@ -70,6 +73,7 @@ sops:
             MVozaDJFOVd2QkVlRHhSNS90Y3RFeDgK89Qa5hNdtk7Kt0UP+rzNxKEqrIFl0B9h
             YU93wIcJ144z7qfKfmwmhW1KkOvZVUyeWPApljS2yHr6b0QNrhfANA==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-29T01:08:51Z"
-    mac: ENC[AES256_GCM,data:yMrVG9tKCLV87aQnazFjk9suEhBS8HdNdArk0nZp8jWOljxzeoRtprjJI0mh8k8tNfuWuuIU1kB8qF0qBdAzRzAmxrs+X1Y0HdbAFu33Rb5Tz8mEIyOlxzGXVYBffyGEoAS1+2hxYbJzTK7e+P51emU0muQ1eomONJzoGGe3m1A=,iv:UyXza8SB1IdPw6qMC2rualkVA1bt465AWgbCyulP8PE=,tag:Lt1ClpXjyjU/ayu6E7pFNg==,type:str]
-    version: 3.10.2
+    lastmodified: "2026-01-12T17:14:24Z"
+    mac: ENC[AES256_GCM,data:GNdV2WEqy+OY7CeN80Pj+0KEKIfF3wtetgP95TZcFl2qQVvPdCKm1Vg2wcEud4P1wW0PocohDuVuT4aAJBHyWsgPqFnqvHJLoSskR4WiAq5xHx73Vx+f5CcTsbPZcU/jTUwJbqUxiWX6iyBolo24xvYqSo0CiPk8qDZAwuJQQ5g=,iv:sk50gAkqGGfDsUH24CjtWBQa/W8s/vY9e7Gqas2Kt04=,tag:iqrE4+skIr3h1zu4kQJuwA==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.11.0
