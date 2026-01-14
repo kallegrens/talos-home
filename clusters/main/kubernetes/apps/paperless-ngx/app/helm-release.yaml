@@ -91,3 +91,8 @@ spec:
       main:
         cluster:
           singleNode: true
+
+    resources:
+      limits:
+        cpu: 3000m
+        memory: 6Gi
