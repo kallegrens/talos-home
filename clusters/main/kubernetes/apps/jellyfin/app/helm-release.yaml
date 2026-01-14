@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: jellyfin
-      version: 21.12.9
+      version: 22.0.0
       sourceRef:
         kind: HelmRepository
         name: truecharts
@@ -47,6 +47,8 @@ spec:
           - host: jellyfin.${DOMAIN_0}
 
     persistence:
+      data:
+        enabled: true
       movies:
         enabled: true
         type: nfs
@@ -59,6 +61,16 @@ spec:
         server: ${NFS_IP}
         path: /mnt/lundgrens_data/plex-media/TV-Shows
         mountPath: /data/series
+
+    workload:
+      main:
+        podSpec:
+          containers:
+            main:
+              command:
+                - /bin/sh
+                - -c
+                - tail -f /dev/null
 
     autodiscovery:
       enabled: true
