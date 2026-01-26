@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: automatic-ripping-machine
-      version: 6.18.35
+      version: 6.18.36
       sourceRef:
         kind: HelmRepository
         name: truecharts
