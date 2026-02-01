@@ -31,9 +31,12 @@ spec:
     keepHistory: false
   values:
     TZ: Europe/Stockholm
-    cloudflareddns:
-      api_token: ${DOMAIN_0_CLOUDFLARE_TOKEN}
-      host_zone_record:
-        - domain: ${DOMAIN_0}
-          record: A
-          zone: ${ZONE_0}
+    workload:
+      main:
+        podSpec:
+          containers:
+            main:
+              env:
+                CF_APITOKEN: ${DOMAIN_0_CLOUDFLARE_TOKEN}
+                CF_HOSTS: ${DOMAIN_0}
+                UPDATE_IPV6: false

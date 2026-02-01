@@ -14,3 +14,4 @@ PROGRESS*
 clusters/main/talos/talenv.yaml
 *.log
 *.txt
+prompts/
