@@ -1,0 +1,129 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: emhass
+  namespace: emhass
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.2
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      interval: 15m
+  timeout: 20m
+  maxHistory: 3
+  driftDetection:
+    mode: warn
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    controllers:
+      emhass:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/davidusb-geek/emhass
+              tag: v0.16.2
+            env:
+              TZ: Europe/Stockholm
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 5000
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 5000
+                  initialDelaySeconds: 10
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 5000
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 30
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+
+    service:
+      app:
+        controller: emhass
+        ports:
+          http:
+            port: 5000
+
+    ingress:
+      app:
+        className: internal
+        annotations:
+          cert-manager.io/cluster-issuer: domain-0-le-prod
+        hosts:
+          - host: emhass.${DOMAIN_0}
+            paths:
+              - path: /
+                service:
+                  identifier: app
+                  port: http
+        tls:
+          - hosts:
+              - emhass.${DOMAIN_0}
+            secretName: emhass-tls
+
+    persistence:
+      secrets:
+        type: secret
+        name: emhass-secrets
+        globalMounts:
+          - path: /app/secrets_emhass.yaml
+            subPath: secrets_emhass.yaml
+            readOnly: true
+      config:
+        type: configMap
+        name: emhass-config
+        globalMounts:
+          - path: /share/config.json
+            subPath: config.json
+            readOnly: true
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        globalMounts:
+          - path: /data

@@ -22,3 +22,4 @@ resources:
   - immich/ks.yaml
   - paperless-ngx/ks.yaml
   - home-assistant/ks.yaml
+  - emhass/ks.yaml
