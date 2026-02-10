@@ -119,7 +119,7 @@ spec:
         globalMounts:
           - path: /share/config.json
             subPath: config.json
-            readOnly: true
+            readOnly: false
       data:
         type: persistentVolumeClaim
         storageClass: longhorn
