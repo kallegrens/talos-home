@@ -9,29 +9,29 @@ data:
     {
       "logging_level": "INFO",
       "costfun": "profit",
-      "optimization_time_step": 30,
+      "optimization_time_step": 15,
       "historic_days_to_retrieve": 9,
       "method_ts_round": "nearest",
-      "continual_publish": false,
+      "continual_publish": true,
       "data_path": "default",
       "set_total_pv_sell": false,
-      "lp_solver_timeout": 45,
+      "lp_solver_timeout": 90,
       "num_threads": 0,
       "ssl_no_verify": false,
       "set_nocharge_from_grid": false,
-      "set_nodischarge_to_grid": true,
+      "set_nodischarge_to_grid": false,
       "set_battery_dynamic": false,
       "battery_dynamic_max": 0.9,
       "battery_dynamic_min": -0.9,
       "weight_battery_discharge": 0.0,
       "weight_battery_charge": 0.0,
-      "sensor_power_photovoltaics": "sensor.power_photovoltaics",
+      "sensor_power_photovoltaics": "sensor.goodwe_pv_power",
       "sensor_power_photovoltaics_forecast": "sensor.p_pv_forecast",
-      "sensor_power_load_no_var_loads": "sensor.power_load_no_var_loads",
-      "sensor_replace_zero": ["sensor.power_photovoltaics", "sensor.p_pv_forecast"],
+      "sensor_power_load_no_var_loads": "sensor.goodwe_house_consumption",
+      "sensor_replace_zero": ["sensor.goodwe_pv_power", "sensor.p_pv_forecast"],
       "sensor_linear_interp": [
-        "sensor.power_photovoltaics",
-        "sensor.power_load_no_var_loads"
+        "sensor.goodwe_pv_power",
+        "sensor.goodwe_house_consumption"
       ],
       "use_websocket": false,
       "use_influxdb": false,
@@ -52,9 +52,9 @@ data:
       "open_meteo_cache_max_age": 30,
       "load_forecast_method": "naive",
       "model_type": "load_forecast",
-      "var_model": "sensor.power_load_no_var_loads",
+      "var_model": "sensor.goodwe_house_consumption",
       "sklearn_model": "KNeighborsRegressor",
-      "num_lags": 48,
+      "num_lags": 96,
       "split_date_delta": "48h",
       "perform_backtest": false,
       "delta_forecast_daily": 1,
@@ -64,61 +64,57 @@ data:
       "load_peak_hour_periods": {
         "period_hp_1": [
           {
-            "start": "02:54"
+            "start": "07:00"
           },
           {
-            "end": "15:24"
+            "end": "09:00"
           }
         ],
         "period_hp_2": [
           {
-            "start": "17:24"
+            "start": "17:00"
           },
           {
-            "end": "20:24"
+            "end": "20:00"
           }
         ]
       },
       "treat_deferrable_load_as_semi_cont": [true, true],
       "set_deferrable_load_single_constant": [false, false],
       "set_deferrable_startup_penalty": [0.0, 0.0],
-      "load_peak_hours_cost": 0.1907,
-      "load_offpeak_hours_cost": 0.1419,
+      "load_peak_hours_cost": 2.10,
+      "load_offpeak_hours_cost": 0.80,
       "production_price_forecast_method": "constant",
-      "photovoltaic_production_sell_price": 0.1419,
-      "maximum_power_from_grid": 9000,
-      "maximum_power_to_grid": 9000,
-      "set_use_pv": false,
+      "photovoltaic_production_sell_price": 0.50,
+      "maximum_power_from_grid": 13800,
+      "maximum_power_to_grid": 10000,
+      "set_use_pv": true,
       "set_use_adjusted_pv": false,
       "adjusted_pv_regression_model": "LassoRegression",
       "adjusted_pv_solar_elevation_threshold": 10,
       "adjusted_pv_model_max_age": 24,
-      "pv_module_model": [
-        "CSUN_Eurasia_Energy_Systems_Industry_and_Trade_CSUN295_60M"
-      ],
-      "pv_inverter_model": [
-        "Fronius_International_GmbH__Fronius_Primo_5_0_1_208_240__240V_"
-      ],
-      "surface_tilt": [30],
-      "surface_azimuth": [205],
+      "pv_module_model": [360],
+      "pv_inverter_model": [10000],
+      "surface_tilt": [15],
+      "surface_azimuth": [125],
       "modules_per_string": [16],
-      "strings_per_inverter": [1],
-      "inverter_is_hybrid": false,
-      "inverter_ac_output_max": 5000,
-      "inverter_ac_input_max": 5000,
+      "strings_per_inverter": [2],
+      "inverter_is_hybrid": true,
+      "inverter_ac_output_max": 10000,
+      "inverter_ac_input_max": 10000,
       "inverter_efficiency_dc_ac": 1.0,
       "inverter_efficiency_ac_dc": 1.0,
       "inverter_stress_cost": 0.0,
       "inverter_stress_segments": 10,
       "compute_curtailment": false,
-      "set_use_battery": false,
-      "battery_discharge_power_max": 1000,
-      "battery_charge_power_max": 1000,
+      "set_use_battery": true,
+      "battery_discharge_power_max": 7000,
+      "battery_charge_power_max": 7000,
       "battery_discharge_efficiency": 0.95,
       "battery_charge_efficiency": 0.95,
-      "battery_nominal_energy_capacity": 5000,
-      "battery_minimum_state_of_charge": 0.3,
-      "battery_maximum_state_of_charge": 0.9,
+      "battery_nominal_energy_capacity": 14210,
+      "battery_minimum_state_of_charge": 0.05,
+      "battery_maximum_state_of_charge": 0.95,
       "battery_target_state_of_charge": 0.6,
       "battery_stress_cost": 0.0,
       "battery_stress_segments": 10
