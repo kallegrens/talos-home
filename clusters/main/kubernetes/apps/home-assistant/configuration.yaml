@@ -1,0 +1,173 @@
+# Configure a default setup of Home Assistant (frontend, api, etc)
+default_config:
+# Text to speech
+tts:
+  - platform: google_translate
+group: !include groups.yaml
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+recorder:
+  purge_keep_days: 30
+  commit_interval: 3
+  db_url: "postgresql://home-assistant:PLACEHOLDERPASSWORD@home-assistant-cnpg-main-rw:5432/home-assistant?client_encoding=utf8"
+
+# ---------------------------------------------------------------------------
+# Manual toggles
+# ---------------------------------------------------------------------------
+input_boolean:
+  solar_panels_snow_covered:
+    name: Solar panels snow covered
+    icon: mdi:snowflake-alert
+
+# ---------------------------------------------------------------------------
+# EMHASS REST commands
+# ---------------------------------------------------------------------------
+rest_command:
+  emhass_mpc_optim:
+    url: "http://emhass.emhass.svc.cluster.local:5000/action/naive-mpc-optim"
+    method: POST
+    content_type: "application/json"
+    timeout: 30
+    payload: >-
+      {%- set curr_soc = states('sensor.goodwe_battery_state_of_charge') | float(0) / 100 -%}
+      {%- set snow = is_state('input_boolean.solar_panels_snow_covered', 'on') -%}
+      {%- set extra_buy = 0.607 -%}
+      {%- set grid_comp = 0.047 -%}
+      {%- set min_horizon = 12 -%}
+      {%- set tibber_prices = state_attr('sensor.tibber_cached_prices', 'prices') | default([], true) -%}
+      {%- set np_today = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_today') | default([], true) -%}
+      {%- set np_tomorrow = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_tomorrow') | default([], true) -%}
+      {%- set np_all = np_today + np_tomorrow -%}
+      {%- set tibber_markup = 0.116 -%}
+      {%- set t = now() -%}
+      {%- set slot_epoch = as_timestamp(t.replace(minute=(t.minute // 15) * 15, second=0, microsecond=0)) -%}
+      {%- set buy_dict = namespace(d={}) -%}
+      {%- set sell_dict = namespace(d={}) -%}
+      {%- set tibber_by_ts = namespace(d={}) -%}
+      {%- for p in tibber_prices if p is mapping and as_timestamp(p.start_time) >= slot_epoch -%}
+        {%- set ts_key = as_timestamp(p.start_time) | int | string -%}
+        {%- set tibber_by_ts.d = dict(tibber_by_ts.d, **{ts_key: p.price}) -%}
+      {%- endfor -%}
+      {%- for p in np_all if p is mapping and as_timestamp(p.start) >= slot_epoch -%}
+        {%- set ts_key = as_timestamp(p.start) | int | string -%}
+        {%- set tibber_price = tibber_by_ts.d.get(ts_key, none) -%}
+        {%- if tibber_price is not none -%}
+          {%- set buy_price = tibber_price -%}
+        {%- else -%}
+          {%- set buy_price = (p.value * 1.25 + tibber_markup) | round(4) -%}
+        {%- endif -%}
+        {%- set buy_dict.d = dict(buy_dict.d, **{p.start | string: (buy_price + extra_buy) | round(4)}) -%}
+        {%- set sell_dict.d = dict(sell_dict.d, **{p.start | string: (p.value + grid_comp) | round(4)}) -%}
+      {%- endfor -%}
+      {%- set horizon = [[sell_dict.d | length, min_horizon] | max, 192] | min -%}
+      {
+        "soc_init": {{ curr_soc }},
+        "soc_final": {{ curr_soc }},
+        "prediction_horizon": {{ horizon }},
+        "operating_hours_of_each_deferrable_load": [0, 0],
+        "load_cost_forecast": {{ buy_dict.d | tojson }},
+        "prod_price_forecast": {{ sell_dict.d | tojson }}
+        {%- if snow -%}
+          {%- set ypv = state_attr('sensor.pv_daily_profile', 'yesterday') | default([], true) -%}
+          {%- set slot_idx = (now().hour * 4) + (now().minute // 15) -%}
+          {%- set ns = namespace(pv=[]) -%}
+          {%- for i in range(horizon) -%}
+            {%- set idx = (slot_idx + i) % 96 -%}
+            {%- if idx < ypv | length -%}
+              {%- set ns.pv = ns.pv + [ypv[idx] | float(0)] -%}
+            {%- else -%}
+              {%- set ns.pv = ns.pv + [0] -%}
+            {%- endif -%}
+          {%- endfor -%}
+          ,"pv_power_forecast": {{ ns.pv | tojson }}
+        {%- endif %}
+      }
+
+  emhass_weather_cache:
+    url: "http://emhass.emhass.svc.cluster.local:5000/action/weather-forecast-cache"
+    method: POST
+    content_type: "application/json"
+    payload: "{}"
+    timeout: 60
+
+# ---------------------------------------------------------------------------
+# Template sensors
+# ---------------------------------------------------------------------------
+template:
+  - trigger:
+      - trigger: time
+        at: "13:05:00"
+      - trigger: event
+        event_type: tibber_cache_refresh
+      - trigger: template
+        value_template: >-
+          {{ state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'tomorrow_valid') == true }}
+    action:
+      - action: tibber.get_prices
+        data:
+          start: "{{ today_at('00:00') }}"
+          end: "{{ today_at('00:00') + timedelta(days=2) }}"
+        response_variable: tibber_result
+    sensor:
+      - name: "Tibber Cached Prices"
+        unique_id: tibber_cached_prices
+        state: >-
+          {{ tibber_result.prices['Lavendelgången 3'] | length }}
+        unit_of_measurement: "entries"
+        attributes:
+          prices: >-
+            {{ tibber_result.prices['Lavendelgången 3'] }}
+          last_fetch: "{{ now().isoformat() }}"
+
+  # Yesterday's PV profile — 96 readings (one per 15-min slot).
+  # Used by the MPC snow override: if panels are snow-covered, feed
+  # yesterday's actual production instead of the clear-sky forecast.
+  # Rolls over at the first sample after midnight each day.
+  - trigger:
+      - trigger: time_pattern
+        minutes: "/15"
+    sensor:
+      - name: "PV Daily Profile"
+        unique_id: pv_daily_profile
+        state: >-
+          {{ state_attr('sensor.pv_daily_profile', 'yesterday') | default([], true) | length }} entries
+        attributes:
+          today: >-
+            {% set stored_date = this.attributes.get('date', '') %}
+            {% set today_str = now().strftime('%Y-%m-%d') %}
+            {% if stored_date != today_str %}
+              {{ [states('sensor.goodwe_pv_power') | float(0)] }}
+            {% else %}
+              {{ this.attributes.get('today', []) + [states('sensor.goodwe_pv_power') | float(0)] }}
+            {% endif %}
+          yesterday: >-
+            {% set stored_date = this.attributes.get('date', '') %}
+            {% set today_str = now().strftime('%Y-%m-%d') %}
+            {% if stored_date != today_str %}
+              {{ this.attributes.get('today', []) }}
+            {% else %}
+              {{ this.attributes.get('yesterday', []) }}
+            {% endif %}
+          date: "{{ now().strftime('%Y-%m-%d') }}"
+
+  # Snow detector: fires when forecast > 100W but actual < 5%.
+  # An automation latches input_boolean.solar_panels_snow_covered ON
+  # when this turns on. A separate automation clears the boolean when
+  # actual PV recovers (> 50% of forecast for 30 min).
+  - binary_sensor:
+      - name: Solar Snow Detected
+        unique_id: solar_snow_detected
+        device_class: problem
+        state: >-
+          {% set forecast = states('sensor.p_pv_forecast') | float(0) %}
+          {% set actual = states('sensor.goodwe_pv_power') | float(0) %}
+          {{ forecast > 100 and actual < forecast * 0.05 }}
+        icon: >-
+          {{ 'mdi:snowflake-alert' if this.state == 'on' else 'mdi:solar-panel' }}
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.16.0.0/16
+    - 172.17.0.0/16

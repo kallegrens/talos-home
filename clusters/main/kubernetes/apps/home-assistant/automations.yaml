@@ -1,0 +1,273 @@
+# ===========================================================================
+# Tibber Integration Health
+# ===========================================================================
+
+- id: "1770642990708"
+  alias: Tibber Watchdog
+  description: >-
+    Checks every 5 min if Tibber pulse sensor is stale (>10 min).
+    Attempts one reload; if it fails, sends a persistent notification.
+  triggers:
+    - minutes: /5
+      trigger: time_pattern
+  conditions:
+    - condition: template
+      value_template: >-
+        {% set e = states.sensor.tibber_pulse_lavendelgangen_3_power %}
+        {{ e is not none and (now() - e.last_updated).total_seconds() > 600 }}
+  actions:
+    - action: homeassistant.reload_config_entry
+      target:
+        entity_id: sensor.tibber_pulse_lavendelgangen_3_power
+      continue_on_error: true
+    - delay: 00:00:30
+    - condition: template
+      value_template: >-
+        {% set e = states.sensor.tibber_pulse_lavendelgangen_3_power %}
+        {{ e is none or (now() - e.last_updated).total_seconds() > 600 }}
+    - action: persistent_notification.create
+      data:
+        title: "Tibber Integration Stuck"
+        message: >-
+          Tibber pulse sensor stale >10 min and reload failed.
+          HA restart required. Time: {{ now().isoformat() }}
+        notification_id: tibber_stuck
+  mode: single
+
+- id: "1770700000005"
+  alias: Tibber Cache - Populate on Startup
+  description: >-
+    Waits 3 min after HA start for Tibber to fully load, then fires
+    a custom event that the template sensor can listen for.
+  triggers:
+    - trigger: homeassistant
+      event: start
+  actions:
+    - delay: "00:03:00"
+    - event: tibber_cache_refresh
+  mode: single
+
+# ===========================================================================
+# EMHASS MPC Optimization
+# ===========================================================================
+
+- id: "1770700000006"
+  alias: EMHASS MPC Loop
+  description: >-
+    Runs MPC every 5 min with dynamic prediction horizon matching
+    available price data. continual_publish handles sensor updates.
+  triggers:
+    - minutes: /5
+      trigger: time_pattern
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ (state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_today') | default([], true) | length > 0)
+           and states('sensor.goodwe_battery_state_of_charge') | is_number }}
+  actions:
+    - action: rest_command.emhass_mpc_optim
+  mode: single
+
+- id: "1770700000007"
+  alias: EMHASS PV Forecast Cache
+  description: >-
+    Caches PV weather forecast 3x daily so MPC runs reuse cached data
+    instead of hitting Open-Meteo every 5 min.
+  triggers:
+    - at: "06:00:00"
+      trigger: time
+    - at: "12:00:00"
+      trigger: time
+    - at: "18:00:00"
+      trigger: time
+  actions:
+    - action: rest_command.emhass_weather_cache
+  mode: single
+
+# ===========================================================================
+# GoodWe Battery Control
+# ===========================================================================
+
+- id: "1770700000003"
+  alias: EMHASS Battery Control
+  description: >-
+    Translates EMHASS p_batt_forecast into GoodWe eco-mode commands.
+    p_batt < -deadband → eco_charge, p_batt > deadband → eco_discharge,
+    else → general. Power sent as % of rated battery max.
+    Limit: inverter 25A × 192V nominal = 4800W.
+  triggers:
+    - minutes: /5
+      trigger: time_pattern
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ states('sensor.p_batt_forecast') not in ['unknown', 'unavailable'] }}
+  actions:
+    - variables:
+        p_batt: "{{ states('sensor.p_batt_forecast') | float(0) }}"
+        target_soc: "{{ states('sensor.soc_batt_forecast') | float(50) }}"
+        batt_max_w: 4800
+        deadband_w: 200
+        power_pct: >-
+          {{ [[((p_batt | abs) / batt_max_w * 100) | round(0) | int, 5] | max, 100] | min }}
+    - choose:
+        # --- CHARGE ---
+        - conditions:
+            - condition: template
+              value_template: "{{ p_batt < -deadband_w }}"
+          sequence:
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_eco_mode_power
+              data:
+                value: "{{ power_pct }}"
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_eco_mode_soc
+              data:
+                value: "{{ target_soc | round(0) | int }}"
+            - action: select.select_option
+              target:
+                entity_id: select.goodwe_inverter_operation_mode
+              data:
+                option: eco_charge
+
+        # --- DISCHARGE ---
+        - conditions:
+            - condition: template
+              value_template: "{{ p_batt > deadband_w }}"
+          sequence:
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_eco_mode_power
+              data:
+                value: "{{ power_pct }}"
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_eco_mode_soc
+              data:
+                value: "{{ [target_soc | round(0) | int - 10, 5] | max }}"
+            - action: select.select_option
+              target:
+                entity_id: select.goodwe_inverter_operation_mode
+              data:
+                option: eco_discharge
+
+      # --- IDLE → general ---
+      default:
+        - condition: template
+          value_template: >-
+            {{ states('select.goodwe_inverter_operation_mode') != 'general' }}
+        - action: select.select_option
+          target:
+            entity_id: select.goodwe_inverter_operation_mode
+          data:
+            option: general
+  mode: single
+
+# ===========================================================================
+# Failsafe
+# ===========================================================================
+
+- id: "1770700000004"
+  alias: EMHASS Failsafe
+  description: >-
+    Reverts to general mode if p_batt_forecast is stale >20 min
+    while inverter is in an eco mode.
+  triggers:
+    - minutes: /5
+      trigger: time_pattern
+  conditions:
+    - condition: template
+      value_template: >-
+        {% set sensor = states.sensor.p_batt_forecast %}
+        {% set mode = states('select.goodwe_inverter_operation_mode') %}
+        {{ mode in ['eco_charge', 'eco_discharge'] and
+           (sensor is none or
+            sensor.state in ['unknown', 'unavailable'] or
+            (now() - sensor.last_updated).total_seconds() > 1200) }}
+  actions:
+    - action: select.select_option
+      target:
+        entity_id: select.goodwe_inverter_operation_mode
+      data:
+        option: general
+    - action: persistent_notification.create
+      data:
+        title: "EMHASS Failsafe Triggered"
+        message: >-
+          p_batt_forecast stale >20 min. Inverter reverted to General mode.
+  mode: single
+
+# ===========================================================================
+# Snow Detection  (latching design)
+#   binary_sensor.solar_snow_detected  = real-time detector (daytime only)
+#   input_boolean.solar_panels_snow_covered = latching flag checked by MPC
+# ===========================================================================
+
+- id: "1770700000008"
+  alias: Solar Snow - Latch ON
+  description: >-
+    When the detector fires (forecast > 100W, actual < 5%), latch the
+    input_boolean ON. Requires the boolean to have been OFF for at
+    least 1 hour, preventing re-latch after manual override or
+    auto-clear.
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.solar_snow_detected
+      to: "on"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.solar_panels_snow_covered
+      state: "off"
+      for: "01:00:00"
+  actions:
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.solar_panels_snow_covered
+    - action: persistent_notification.create
+      data:
+        title: "☃️ Snow Mode Active"
+        message: >-
+          Auto-detected snow on panels at {{ now().strftime('%H:%M') }}.
+          Forecast={{ states('sensor.p_pv_forecast') }}W,
+          actual={{ states('sensor.goodwe_pv_power') }}W.
+          MPC will zero PV forecast until panels are clear.
+        notification_id: solar_snow
+  mode: single
+
+- id: "1770700000009"
+  alias: Solar Snow - Auto Clear
+  description: >-
+    Clears snow mode only when there is strong evidence panels are
+    truly clear: actual PV > 50% of forecast AND > 200W absolute,
+    sustained for 30 min, during midday (09–15) when sun angle gives
+    a reliable signal. Prevents false clears from light leaking
+    around snow edges or brief cloud gaps.
+  triggers:
+    - trigger: template
+      value_template: >-
+        {% set forecast = states('sensor.p_pv_forecast') | float(0) %}
+        {% set actual = states('sensor.goodwe_pv_power') | float(0) %}
+        {% set midday = 9 <= now().hour < 15 %}
+        {{ midday and forecast > 200 and actual > 200
+           and actual > forecast * 0.50 }}
+      for: "00:30:00"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.solar_panels_snow_covered
+      state: "on"
+  actions:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.solar_panels_snow_covered
+    - action: persistent_notification.create
+      data:
+        title: "☀️ Snow Mode Cleared"
+        message: >-
+          Panels confirmed clear at {{ now().strftime('%H:%M') }}
+          ({{ states('sensor.goodwe_pv_power') }}W actual vs
+          {{ states('sensor.p_pv_forecast') }}W forecast, sustained 30 min).
+          Normal PV forecast restored.
+        notification_id: solar_snow
+  mode: single
