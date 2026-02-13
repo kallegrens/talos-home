@@ -54,10 +54,12 @@
 - id: "1770700000006"
   alias: EMHASS MPC Loop
   description: >-
-    Runs MPC every 5 min with dynamic prediction horizon matching
+    Runs MPC every 7 min with dynamic prediction horizon matching
     available price data. continual_publish handles sensor updates.
+    7 min chosen because it is coprime with the 15-min price slot
+    boundary, preventing systematic alignment that causes flip-flop.
   triggers:
-    - minutes: /5
+    - minutes: /7
       trigger: time_pattern
   conditions:
     - condition: template
@@ -92,11 +94,14 @@
   alias: EMHASS Battery Control
   description: >-
     Translates EMHASS p_batt_forecast into GoodWe eco-mode commands.
-    p_batt < -deadband → eco_charge, p_batt > deadband → eco_discharge,
-    else → general. Power sent as % of rated battery max.
-    Limit: inverter 25A × 192V nominal = 4800W.
+    p_batt < -deadband → eco_charge (charge to target_soc at power_pct).
+    p_batt >  deadband → eco_discharge (discharge to target_soc-10 at power_pct).
+    deadband → eco_charge (hold SOC: charge at 5% to current SOC).
+    Never uses 'general' mode because GoodWe general = self-use,
+    which discharges the battery uncontrolled.
+    Power sent as % of rated battery max (25A × 192V = 4800W).
   triggers:
-    - minutes: /5
+    - minutes: /7
       trigger: time_pattern
   conditions:
     - condition: template
@@ -153,16 +158,27 @@
               data:
                 option: eco_discharge
 
-      # --- IDLE → general ---
+      # --- IDLE → eco_charge hold ---
+      # Hold current SOC: charge at minimum power to actual SOC.
+      # eco_charge won't discharge, so the battery stays put.
+      # No guard condition — always update power/soc so the inverter
+      # tracks the actual SOC even when transitioning from CHARGE→IDLE.
       default:
-        - condition: template
-          value_template: >-
-            {{ states('select.goodwe_inverter_operation_mode') != 'general' }}
+        - action: number.set_value
+          target:
+            entity_id: number.goodwe_eco_mode_power
+          data:
+            value: "5"
+        - action: number.set_value
+          target:
+            entity_id: number.goodwe_eco_mode_soc
+          data:
+            value: "{{ states('sensor.goodwe_battery_state_of_charge') | int(50) }}"
         - action: select.select_option
           target:
             entity_id: select.goodwe_inverter_operation_mode
           data:
-            option: general
+            option: eco_charge
   mode: single
 
 # ===========================================================================
@@ -172,31 +188,41 @@
 - id: "1770700000004"
   alias: EMHASS Failsafe
   description: >-
-    Reverts to general mode if p_batt_forecast is stale >20 min
-    while inverter is in an eco mode.
+    If p_batt_forecast is stale >20 min, hold the battery at
+    current SOC using eco_charge at minimum power. Checks every
+    7 min. This prevents uncontrolled discharge if EMHASS stops.
   triggers:
-    - minutes: /5
+    - minutes: /7
       trigger: time_pattern
   conditions:
     - condition: template
       value_template: >-
         {% set sensor = states.sensor.p_batt_forecast %}
-        {% set mode = states('select.goodwe_inverter_operation_mode') %}
-        {{ mode in ['eco_charge', 'eco_discharge'] and
-           (sensor is none or
-            sensor.state in ['unknown', 'unavailable'] or
-            (now() - sensor.last_updated).total_seconds() > 1200) }}
+        {{ sensor is none or
+           sensor.state in ['unknown', 'unavailable'] or
+           (now() - sensor.last_updated).total_seconds() > 1200 }}
   actions:
+    - action: number.set_value
+      target:
+        entity_id: number.goodwe_eco_mode_power
+      data:
+        value: "5"
+    - action: number.set_value
+      target:
+        entity_id: number.goodwe_eco_mode_soc
+      data:
+        value: "{{ states('sensor.goodwe_battery_state_of_charge') | int(50) }}"
     - action: select.select_option
       target:
         entity_id: select.goodwe_inverter_operation_mode
       data:
-        option: general
+        option: eco_charge
     - action: persistent_notification.create
       data:
         title: "EMHASS Failsafe Triggered"
         message: >-
-          p_batt_forecast stale >20 min. Inverter reverted to General mode.
+          p_batt_forecast stale >20 min. Inverter set to eco_charge
+          holding SOC at {{ states('sensor.goodwe_battery_state_of_charge') }}%.
   mode: single
 
 # ===========================================================================

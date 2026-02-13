@@ -38,7 +38,7 @@ rest_command:
       {%- set tibber_vat_multiplier = 1.25 -%}
       {%- set tibber_fixed_markup = 0.116 -%}
       {%- set min_horizon_slots = 44 -%}
-      {%- set max_horizon_slots = 288 -%}
+      {%- set max_horizon_slots = 192 -%}
       {%- set slots_per_day = 96 -%}
       {%- set slot_minutes = 15 -%}
       {%- set seconds_per_day = 86400 -%}
