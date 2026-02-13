@@ -44,7 +44,7 @@ data:
       "influxdb_verify_ssl": false,
       "load_negative": false,
       "set_zero_min": true,
-      "number_of_deferrable_loads": 2,
+      "number_of_deferrable_loads": 0,
       "nominal_power_of_deferrable_loads": [3000.0, 750.0],
       "minimum_power_of_deferrable_loads": [0.0, 0.0],
       "operating_hours_of_each_deferrable_load": [4, 0],

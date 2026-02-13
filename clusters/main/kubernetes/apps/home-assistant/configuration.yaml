@@ -31,17 +31,23 @@ rest_command:
     timeout: 30
     payload: >-
       {%- set curr_soc = states('sensor.goodwe_battery_state_of_charge') | float(0) / 100 -%}
+      {%- set soc_final_target = 0.10 -%}
       {%- set snow = is_state('input_boolean.solar_panels_snow_covered', 'on') -%}
-      {%- set extra_buy = 0.607 -%}
-      {%- set grid_comp = 0.047 -%}
-      {%- set min_horizon = 12 -%}
+      {%- set energiskatt_och_natavgift = 0.607 -%}
+      {%- set grid_compensation = 0.047 -%}
+      {%- set tibber_vat_multiplier = 1.25 -%}
+      {%- set tibber_fixed_markup = 0.116 -%}
+      {%- set min_horizon_slots = 44 -%}
+      {%- set max_horizon_slots = 288 -%}
+      {%- set slots_per_day = 96 -%}
+      {%- set slot_minutes = 15 -%}
+      {%- set seconds_per_day = 86400 -%}
       {%- set tibber_prices = state_attr('sensor.tibber_cached_prices', 'prices') | default([], true) -%}
       {%- set np_today = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_today') | default([], true) -%}
       {%- set np_tomorrow = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_tomorrow') | default([], true) -%}
       {%- set np_all = np_today + np_tomorrow -%}
-      {%- set tibber_markup = 0.116 -%}
       {%- set t = now() -%}
-      {%- set slot_epoch = as_timestamp(t.replace(minute=(t.minute // 15) * 15, second=0, microsecond=0)) -%}
+      {%- set slot_epoch = as_timestamp(t.replace(minute=(t.minute // slot_minutes) * slot_minutes, second=0, microsecond=0)) -%}
       {%- set buy_dict = namespace(d={}) -%}
       {%- set sell_dict = namespace(d={}) -%}
       {%- set tibber_by_ts = namespace(d={}) -%}
@@ -55,25 +61,33 @@ rest_command:
         {%- if tibber_price is not none -%}
           {%- set buy_price = tibber_price -%}
         {%- else -%}
-          {%- set buy_price = (p.value * 1.25 + tibber_markup) | round(4) -%}
+          {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup) | round(4) -%}
         {%- endif -%}
-        {%- set buy_dict.d = dict(buy_dict.d, **{p.start | string: (buy_price + extra_buy) | round(4)}) -%}
-        {%- set sell_dict.d = dict(sell_dict.d, **{p.start | string: (p.value + grid_comp) | round(4)}) -%}
+        {%- set buy_dict.d = dict(buy_dict.d, **{p.start | string: (buy_price + energiskatt_och_natavgift) | round(4)}) -%}
+        {%- set sell_dict.d = dict(sell_dict.d, **{p.start | string: (p.value + grid_compensation) | round(4)}) -%}
       {%- endfor -%}
-      {%- set horizon = [[sell_dict.d | length, min_horizon] | max, 192] | min -%}
+      {%- set tail_src = np_tomorrow if np_tomorrow | length > 0 else np_today -%}
+      {%- for p in tail_src if p is mapping -%}
+        {%- set shifted_key = (as_timestamp(p.start) + seconds_per_day) | timestamp_local -%}
+        {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup + energiskatt_och_natavgift) | round(4) -%}
+        {%- set sell_price = (p.value + grid_compensation) | round(4) -%}
+        {%- set buy_dict.d = dict(buy_dict.d, **{shifted_key: buy_price}) -%}
+        {%- set sell_dict.d = dict(sell_dict.d, **{shifted_key: sell_price}) -%}
+      {%- endfor -%}
+      {%- set horizon = [[sell_dict.d | length, min_horizon_slots] | max, max_horizon_slots] | min -%}
       {
         "soc_init": {{ curr_soc }},
-        "soc_final": {{ curr_soc }},
+        "soc_final": {{ soc_final_target }},
         "prediction_horizon": {{ horizon }},
         "operating_hours_of_each_deferrable_load": [0, 0],
         "load_cost_forecast": {{ buy_dict.d | tojson }},
         "prod_price_forecast": {{ sell_dict.d | tojson }}
         {%- if snow -%}
           {%- set ypv = state_attr('sensor.pv_daily_profile', 'yesterday') | default([], true) -%}
-          {%- set slot_idx = (now().hour * 4) + (now().minute // 15) -%}
+          {%- set slot_idx = (now().hour * (slots_per_day // 24)) + (now().minute // slot_minutes) -%}
           {%- set ns = namespace(pv=[]) -%}
           {%- for i in range(horizon) -%}
-            {%- set idx = (slot_idx + i) % 96 -%}
+            {%- set idx = (slot_idx + i) % slots_per_day -%}
             {%- if idx < ypv | length -%}
               {%- set ns.pv = ns.pv + [ypv[idx] | float(0)] -%}
             {%- else -%}
@@ -151,7 +165,7 @@ template:
             {% endif %}
           date: "{{ now().strftime('%Y-%m-%d') }}"
 
-  # Snow detector: fires when forecast > 100W but actual < 5%.
+  # Snow detector: fires when forecast > min_forecast_w but actual < snow_threshold (5%).
   # An automation latches input_boolean.solar_panels_snow_covered ON
   # when this turns on. A separate automation clears the boolean when
   # actual PV recovers (> 50% of forecast for 30 min).
@@ -160,9 +174,11 @@ template:
         unique_id: solar_snow_detected
         device_class: problem
         state: >-
+          {% set min_forecast_w = 100 %}
+          {% set snow_threshold = 0.05 %}
           {% set forecast = states('sensor.p_pv_forecast') | float(0) %}
           {% set actual = states('sensor.goodwe_pv_power') | float(0) %}
-          {{ forecast > 100 and actual < forecast * 0.05 }}
+          {{ forecast > min_forecast_w and actual < forecast * snow_threshold }}
         icon: >-
           {{ 'mdi:snowflake-alert' if this.state == 'on' else 'mdi:solar-panel' }}
 
