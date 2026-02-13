@@ -94,15 +94,29 @@
   alias: EMHASS Battery Control
   description: >-
     Translates EMHASS p_batt_forecast into GoodWe eco-mode commands.
-    p_batt < -deadband → eco_charge (charge to target_soc at power_pct).
-    p_batt >  deadband → eco_discharge (discharge to target_soc-10 at power_pct).
-    deadband → eco_charge (hold SOC: charge at 5% to current SOC).
+    Triggered by MPC publishing a new forecast (state change), NOT by
+    a timer — this eliminates the race condition where Battery Control
+    would read stale forecast data from the previous MPC solve.
+
+    Uses a lookahead over the next 4 slots (~1 hour) to determine
+    the dominant intent, preventing flip-flop when the optimizer
+    produces staccato discharge/idle patterns (e.g. discharge one
+    slot, idle the next). The GoodWe takes time to ramp, so rapid
+    mode switching prevents actual discharge.
+
+    Logic:
+      avg_upcoming > deadband  → eco_discharge
+      avg_upcoming < -deadband → eco_charge
+      otherwise                → eco_charge at SOC 5% (true idle)
+
+    Power % is based on the absolute value of the current slot
+    (p_batt), clamped to 5-100% of rated max (4800W).
+
     Never uses 'general' mode because GoodWe general = self-use,
     which discharges the battery uncontrolled.
-    Power sent as % of rated battery max (25A × 192V = 4800W).
   triggers:
-    - minutes: /7
-      trigger: time_pattern
+    - trigger: state
+      entity_id: sensor.p_batt_forecast
   conditions:
     - condition: template
       value_template: >-
@@ -113,19 +127,59 @@
         target_soc: "{{ states('sensor.soc_batt_forecast') | float(50) }}"
         batt_max_w: 4800
         deadband_w: 200
-        power_pct: >-
-          {{ [[((p_batt | abs) / batt_max_w * 100) | round(0) | int, 5] | max, 100] | min }}
+        # Lookahead: examine next 4 slots (~1 hour) from the schedule
+        # attribute to determine dominant intent (charge/discharge/idle).
+        # The optimizer often produces staccato patterns (discharge one
+        # slot, idle the next) which are mathematically equivalent but
+        # cause destructive flip-flop on the GoodWe.
+        upcoming_slots: >-
+          {% set sched = state_attr('sensor.p_batt_forecast', 'battery_scheduled_power') | default([], true) %}
+          {% set ns = namespace(vals=[]) %}
+          {% for s in sched[:4] %}
+            {% set ns.vals = ns.vals + [s.p_batt_forecast | float(0)] %}
+          {% endfor %}
+          {{ ns.vals }}
+        # Average determines direction (charge vs discharge vs idle)
+        avg_upcoming: >-
+          {% set slots = upcoming_slots %}
+          {% if slots | length > 0 %}
+            {{ slots | sum / slots | length }}
+          {% else %}
+            {{ p_batt }}
+          {% endif %}
+        # Peak of upcoming slots in the dominant direction sets the
+        # power ceiling. eco_mode_power is just a cap — the inverter
+        # won't discharge more than house load needs, so setting it
+        # to the peak is safe and lets the inverter follow the curve.
+        peak_discharge: >-
+          {% set slots = upcoming_slots %}
+          {% set ns = namespace(peak=0) %}
+          {% for v in slots if v > 0 %}
+            {% if v > ns.peak %}{% set ns.peak = v %}{% endif %}
+          {% endfor %}
+          {{ ns.peak }}
+        peak_charge: >-
+          {% set slots = upcoming_slots %}
+          {% set ns = namespace(peak=0) %}
+          {% for v in slots if v < 0 %}
+            {% if v | abs > ns.peak %}{% set ns.peak = v | abs %}{% endif %}
+          {% endfor %}
+          {{ ns.peak }}
+        discharge_pct: >-
+          {{ [[((peak_discharge | float) / batt_max_w * 100) | round(0) | int, 5] | max, 100] | min }}
+        charge_pct: >-
+          {{ [[((peak_charge | float) / batt_max_w * 100) | round(0) | int, 5] | max, 100] | min }}
     - choose:
         # --- CHARGE ---
         - conditions:
             - condition: template
-              value_template: "{{ p_batt < -deadband_w }}"
+              value_template: "{{ avg_upcoming | float < -deadband_w }}"
           sequence:
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_power
               data:
-                value: "{{ power_pct }}"
+                value: "{{ charge_pct }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_soc
@@ -140,13 +194,13 @@
         # --- DISCHARGE ---
         - conditions:
             - condition: template
-              value_template: "{{ p_batt > deadband_w }}"
+              value_template: "{{ avg_upcoming | float > deadband_w }}"
           sequence:
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_power
               data:
-                value: "{{ power_pct }}"
+                value: "{{ discharge_pct }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_soc
@@ -159,10 +213,9 @@
                 option: eco_discharge
 
       # --- IDLE → eco_charge hold ---
-      # Hold current SOC: charge at minimum power to actual SOC.
+      # True idle: set target SOC to minimum (5%). Battery is always
+      # above 5%, so eco_charge has nothing to do — zero power drawn.
       # eco_charge won't discharge, so the battery stays put.
-      # No guard condition — always update power/soc so the inverter
-      # tracks the actual SOC even when transitioning from CHARGE→IDLE.
       default:
         - action: number.set_value
           target:
@@ -173,7 +226,7 @@
           target:
             entity_id: number.goodwe_eco_mode_soc
           data:
-            value: "{{ states('sensor.goodwe_battery_state_of_charge') | int(50) }}"
+            value: "5"
         - action: select.select_option
           target:
             entity_id: select.goodwe_inverter_operation_mode
@@ -211,7 +264,7 @@
       target:
         entity_id: number.goodwe_eco_mode_soc
       data:
-        value: "{{ states('sensor.goodwe_battery_state_of_charge') | int(50) }}"
+        value: "5"
     - action: select.select_option
       target:
         entity_id: select.goodwe_inverter_operation_mode
@@ -222,7 +275,7 @@
         title: "EMHASS Failsafe Triggered"
         message: >-
           p_batt_forecast stale >20 min. Inverter set to eco_charge
-          holding SOC at {{ states('sensor.goodwe_battery_state_of_charge') }}%.
+          with target SOC 5% (true idle).
   mode: single
 
 # ===========================================================================
