@@ -66,20 +66,9 @@ rest_command:
         {%- set buy_dict.d = dict(buy_dict.d, **{p.start | string: (buy_price + energiskatt_och_natavgift) | round(4)}) -%}
         {%- set sell_dict.d = dict(sell_dict.d, **{p.start | string: (p.value + grid_compensation) | round(4)}) -%}
       {%- endfor -%}
-      {%- set have_tomorrow = np_tomorrow | length > 0 -%}
-      {%- set tail_src = np_tomorrow if have_tomorrow else np_today -%}
-      {%- if not have_tomorrow -%}
-        {%- for p in tail_src if p is mapping -%}
-          {%- set shifted_key = (as_timestamp(p.start) + seconds_per_day) | timestamp_local -%}
-          {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup + energiskatt_och_natavgift) | round(4) -%}
-          {%- set sell_price = (p.value + grid_compensation) | round(4) -%}
-          {%- set buy_dict.d = dict(buy_dict.d, **{shifted_key: buy_price}) -%}
-          {%- set sell_dict.d = dict(sell_dict.d, **{shifted_key: sell_price}) -%}
-        {%- endfor -%}
-      {%- endif -%}
+      {%- set tail_src = np_tomorrow if np_tomorrow | length > 0 else np_today -%}
       {%- for p in tail_src if p is mapping -%}
-        {%- set day3_offset = seconds_per_day if have_tomorrow else (seconds_per_day * 2) -%}
-        {%- set shifted_key = (as_timestamp(p.start) + day3_offset) | timestamp_local -%}
+        {%- set shifted_key = (as_timestamp(p.start) + seconds_per_day) | timestamp_local -%}
         {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup + energiskatt_och_natavgift) | round(4) -%}
         {%- set sell_price = (p.value + grid_compensation) | round(4) -%}
         {%- set buy_dict.d = dict(buy_dict.d, **{shifted_key: buy_price}) -%}
