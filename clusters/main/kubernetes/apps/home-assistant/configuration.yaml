@@ -66,7 +66,8 @@ rest_command:
         {%- set buy_dict.d = dict(buy_dict.d, **{p.start | string: (buy_price + energiskatt_och_natavgift) | round(4)}) -%}
         {%- set sell_dict.d = dict(sell_dict.d, **{p.start | string: (p.value + grid_compensation) | round(4)}) -%}
       {%- endfor -%}
-      {%- set tail_src = np_tomorrow if np_tomorrow | length > 0 else np_today -%}
+      {%- set have_tomorrow = np_tomorrow | length > 0 -%}
+      {%- set tail_src = np_tomorrow if have_tomorrow else np_today -%}
       {%- for p in tail_src if p is mapping -%}
         {%- set shifted_key = (as_timestamp(p.start) + seconds_per_day) | timestamp_local -%}
         {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup + energiskatt_och_natavgift) | round(4) -%}
@@ -74,7 +75,9 @@ rest_command:
         {%- set buy_dict.d = dict(buy_dict.d, **{shifted_key: buy_price}) -%}
         {%- set sell_dict.d = dict(sell_dict.d, **{shifted_key: sell_price}) -%}
       {%- endfor -%}
-      {%- set horizon = [[sell_dict.d | length, min_horizon_slots] | max, max_horizon_slots] | min -%}
+      {%- set end_days = 3 if have_tomorrow else 2 -%}
+      {%- set end_midnight = as_timestamp(today_at('00:00')) + (end_days * seconds_per_day) -%}
+      {%- set horizon = [((end_midnight - slot_epoch) / (slot_minutes * 60)) | int, max_horizon_slots] | min -%}
       {
         "soc_init": {{ curr_soc }},
         "soc_final": {{ soc_final_target }},
