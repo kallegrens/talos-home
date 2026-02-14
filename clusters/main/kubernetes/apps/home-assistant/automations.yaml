@@ -114,6 +114,12 @@
 
     Never uses 'general' mode because GoodWe general = self-use,
     which discharges the battery uncontrolled.
+
+    Grid export limit is set to 0W on discharge to prevent battery
+    energy spilling to grid at a loss (eco_discharge is "dumb" and
+    does not use meter feedback). The inverter hardware clamps
+    discharge to house load. On charge/idle the limit is lifted so
+    future solar export is not blocked.
   triggers:
     - trigger: state
       entity_id: sensor.p_batt_forecast
@@ -175,6 +181,12 @@
             - condition: template
               value_template: "{{ avg_upcoming | float < -deadband_w }}"
           sequence:
+            # Lift grid export limit so future solar can export
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_grid_export_limit
+              data:
+                value: "10000"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_power
@@ -196,6 +208,18 @@
             - condition: template
               value_template: "{{ avg_upcoming | float > deadband_w }}"
           sequence:
+            # Clamp grid export to 0W — eco_discharge is "dumb" and
+            # will push full power to grid if house load < discharge.
+            # The hardware export limit forces the inverter to throttle
+            # discharge down to match house consumption.
+            - action: switch.turn_on
+              target:
+                entity_id: switch.goodwe_grid_export_limit_switch
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_grid_export_limit
+              data:
+                value: "0"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_power
@@ -217,6 +241,12 @@
       # above 5%, so eco_charge has nothing to do — zero power drawn.
       # eco_charge won't discharge, so the battery stays put.
       default:
+        # Lift grid export limit so future solar can export
+        - action: number.set_value
+          target:
+            entity_id: number.goodwe_grid_export_limit
+          data:
+            value: "10000"
         - action: number.set_value
           target:
             entity_id: number.goodwe_eco_mode_power
