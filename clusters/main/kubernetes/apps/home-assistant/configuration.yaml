@@ -33,45 +33,20 @@ rest_command:
       {%- set curr_soc = states('sensor.goodwe_battery_state_of_charge') | float(0) / 100 -%}
       {%- set soc_final_target = 0.05 -%}
       {%- set snow = is_state('input_boolean.solar_panels_snow_covered', 'on') -%}
-      {%- set energiskatt_och_natavgift = 0.607 -%}
-      {%- set grid_compensation = 0.047 -%}
-      {%- set tibber_vat_multiplier = 1.25 -%}
-      {%- set tibber_fixed_markup = 0.116 -%}
       {%- set max_horizon_slots = 288 -%}
       {%- set slots_per_day = 96 -%}
       {%- set slot_minutes = 15 -%}
-      {%- set seconds_per_day = 86400 -%}
-      {%- set tibber_prices = state_attr('sensor.tibber_cached_prices', 'prices') | default([], true) -%}
-      {%- set np_today = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_today') | default([], true) -%}
-      {%- set np_tomorrow = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_tomorrow') | default([], true) -%}
-      {%- set np_all = np_today + np_tomorrow -%}
+      {%- set all_buy = state_attr('sensor.emhass_buy_price_forecast', 'prices') | default({}, true) -%}
+      {%- set all_sell = state_attr('sensor.emhass_sell_price_forecast', 'prices') | default({}, true) -%}
       {%- set t = now() -%}
       {%- set slot_epoch = as_timestamp(t.replace(minute=(t.minute // slot_minutes) * slot_minutes, second=0, microsecond=0)) -%}
       {%- set buy_dict = namespace(d={}) -%}
       {%- set sell_dict = namespace(d={}) -%}
-      {%- set tibber_by_ts = namespace(d={}) -%}
-      {%- for p in tibber_prices if p is mapping and as_timestamp(p.start_time) >= slot_epoch -%}
-        {%- set ts_key = as_timestamp(p.start_time) | int | string -%}
-        {%- set tibber_by_ts.d = dict(tibber_by_ts.d, **{ts_key: p.price}) -%}
+      {%- for ts_key, price in all_buy.items() if as_timestamp(ts_key) >= slot_epoch -%}
+        {%- set buy_dict.d = dict(buy_dict.d, **{ts_key: price}) -%}
       {%- endfor -%}
-      {%- for p in np_all if p is mapping and as_timestamp(p.start) >= slot_epoch -%}
-        {%- set ts_key = as_timestamp(p.start) | int | string -%}
-        {%- set tibber_price = tibber_by_ts.d.get(ts_key, none) -%}
-        {%- if tibber_price is not none -%}
-          {%- set buy_price = tibber_price -%}
-        {%- else -%}
-          {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup) | round(4) -%}
-        {%- endif -%}
-        {%- set buy_dict.d = dict(buy_dict.d, **{p.start | string: (buy_price + energiskatt_och_natavgift) | round(4)}) -%}
-        {%- set sell_dict.d = dict(sell_dict.d, **{p.start | string: (p.value + grid_compensation) | round(4)}) -%}
-      {%- endfor -%}
-      {%- set tail_src = np_tomorrow if np_tomorrow | length > 0 else np_today -%}
-      {%- for p in tail_src if p is mapping -%}
-        {%- set shifted_key = (as_timestamp(p.start) + seconds_per_day) | timestamp_local -%}
-        {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup + energiskatt_och_natavgift) | round(4) -%}
-        {%- set sell_price = (p.value + grid_compensation) | round(4) -%}
-        {%- set buy_dict.d = dict(buy_dict.d, **{shifted_key: buy_price}) -%}
-        {%- set sell_dict.d = dict(sell_dict.d, **{shifted_key: sell_price}) -%}
+      {%- for ts_key, price in all_sell.items() if as_timestamp(ts_key) >= slot_epoch -%}
+        {%- set sell_dict.d = dict(sell_dict.d, **{ts_key: price}) -%}
       {%- endfor -%}
       {%- set horizon = [sell_dict.d | length, max_horizon_slots] | min -%}
       {
@@ -133,6 +108,98 @@ template:
             {{ tibber_result.prices['Lavendelgången 3'] }}
           last_fetch: "{{ now().isoformat() }}"
 
+  # Pre-computed buy/sell price forecasts for EMHASS.
+  # Merges Tibber (incl. VAT+markup) with Nordpool (fallback), adds
+  # energiskatt+nätavgift for buy, grid compensation for sell, and
+  # appends a tail-extension day for horizon padding.
+  # Triggers whenever Tibber cache or Nordpool data changes.
+  - trigger:
+      - trigger: state
+        entity_id: sensor.tibber_cached_prices
+      - trigger: state
+        entity_id: sensor.nordpool_kwh_se3_sek_3_10_0
+      - trigger: time_pattern
+        minutes: "/15"
+    sensor:
+      - name: "EMHASS Buy Price Forecast"
+        unique_id: emhass_buy_price_forecast
+        unit_of_measurement: "SEK/kWh"
+        device_class: monetary
+        state_class: measurement
+        state: >-
+          {%- set slot_minutes = 15 -%}
+          {%- set t = now() -%}
+          {%- set slot_key = t.replace(minute=(t.minute // slot_minutes) * slot_minutes, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S%z') -%}
+          {%- set slot_key = slot_key[:-2] ~ ':' ~ slot_key[-2:] -%}
+          {%- set prices = this.attributes.get('prices', {}) -%}
+          {{ prices.get(slot_key, 'unknown') }}
+        attributes:
+          prices: >-
+            {%- set energiskatt_och_natavgift = 0.607 -%}
+            {%- set tibber_vat_multiplier = 1.25 -%}
+            {%- set tibber_fixed_markup = 0.116 -%}
+            {%- set seconds_per_day = 86400 -%}
+            {%- set tibber_prices = state_attr('sensor.tibber_cached_prices', 'prices') | default([], true) -%}
+            {%- set np_today = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_today') | default([], true) -%}
+            {%- set np_tomorrow = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_tomorrow') | default([], true) -%}
+            {%- set np_all = np_today + np_tomorrow -%}
+            {%- set tibber_by_ts = namespace(d={}) -%}
+            {%- for p in tibber_prices if p is mapping -%}
+              {%- set ts_key = as_timestamp(p.start_time) | int | string -%}
+              {%- set tibber_by_ts.d = dict(tibber_by_ts.d, **{ts_key: p.price}) -%}
+            {%- endfor -%}
+            {%- set buy_dict = namespace(d={}) -%}
+            {%- for p in np_all if p is mapping -%}
+              {%- set ts_key = as_timestamp(p.start) | int | string -%}
+              {%- set tibber_price = tibber_by_ts.d.get(ts_key, none) -%}
+              {%- if tibber_price is not none -%}
+                {%- set buy_price = tibber_price -%}
+              {%- else -%}
+                {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup) | round(4) -%}
+              {%- endif -%}
+              {%- set buy_dict.d = dict(buy_dict.d, **{p.start | string: (buy_price + energiskatt_och_natavgift) | round(4)}) -%}
+            {%- endfor -%}
+            {%- set tail_src = np_tomorrow if np_tomorrow | length > 0 else np_today -%}
+            {%- for p in tail_src if p is mapping -%}
+              {%- set shifted_key = (as_timestamp(p.start) + seconds_per_day) | timestamp_local -%}
+              {%- set buy_price = (p.value * tibber_vat_multiplier + tibber_fixed_markup + energiskatt_och_natavgift) | round(4) -%}
+              {%- set buy_dict.d = dict(buy_dict.d, **{shifted_key: buy_price}) -%}
+            {%- endfor -%}
+            {{ buy_dict.d }}
+          last_updated: "{{ now().isoformat() }}"
+
+      - name: "EMHASS Sell Price Forecast"
+        unique_id: emhass_sell_price_forecast
+        unit_of_measurement: "SEK/kWh"
+        device_class: monetary
+        state_class: measurement
+        state: >-
+          {%- set slot_minutes = 15 -%}
+          {%- set t = now() -%}
+          {%- set slot_key = t.replace(minute=(t.minute // slot_minutes) * slot_minutes, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S%z') -%}
+          {%- set slot_key = slot_key[:-2] ~ ':' ~ slot_key[-2:] -%}
+          {%- set prices = this.attributes.get('prices', {}) -%}
+          {{ prices.get(slot_key, 'unknown') }}
+        attributes:
+          prices: >-
+            {%- set grid_compensation = 0.047 -%}
+            {%- set seconds_per_day = 86400 -%}
+            {%- set np_today = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_today') | default([], true) -%}
+            {%- set np_tomorrow = state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_tomorrow') | default([], true) -%}
+            {%- set np_all = np_today + np_tomorrow -%}
+            {%- set sell_dict = namespace(d={}) -%}
+            {%- for p in np_all if p is mapping -%}
+              {%- set sell_dict.d = dict(sell_dict.d, **{p.start | string: (p.value + grid_compensation) | round(4)}) -%}
+            {%- endfor -%}
+            {%- set tail_src = np_tomorrow if np_tomorrow | length > 0 else np_today -%}
+            {%- for p in tail_src if p is mapping -%}
+              {%- set shifted_key = (as_timestamp(p.start) + seconds_per_day) | timestamp_local -%}
+              {%- set sell_price = (p.value + grid_compensation) | round(4) -%}
+              {%- set sell_dict.d = dict(sell_dict.d, **{shifted_key: sell_price}) -%}
+            {%- endfor -%}
+            {{ sell_dict.d }}
+          last_updated: "{{ now().isoformat() }}"
+
   # Yesterday's PV profile — 96 readings (one per 15-min slot).
   # Used by the MPC snow override: if panels are snow-covered, feed
   # yesterday's actual production instead of the clear-sky forecast.
@@ -163,6 +230,17 @@ template:
               {{ this.attributes.get('yesterday', []) }}
             {% endif %}
           date: "{{ now().strftime('%Y-%m-%d') }}"
+
+  # Grid power with flipped sign convention: positive = importing, negative = exporting.
+  # Replaces the Tibber Pulse for real-time grid power in the Energy Dashboard.
+  - sensor:
+      - name: "Grid Power"
+        unique_id: grid_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >-
+          {{ -(states('sensor.goodwe_meter_active_power_total') | float(0)) }}
 
   # Snow detector: fires when forecast > min_forecast_w but actual < snow_threshold (5%).
   # An automation latches input_boolean.solar_panels_snow_covered ON
