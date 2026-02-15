@@ -22,7 +22,7 @@ input_boolean:
   emhass_send_tail_prices:
     name: EMHASS send tail prices (3rd day)
     icon: mdi:calendar-arrow-right
-    initial: true
+    initial: false
 
 input_number:
   emhass_idle_streak:
