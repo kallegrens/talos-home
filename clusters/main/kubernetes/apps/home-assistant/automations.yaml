@@ -13,8 +13,9 @@
   conditions:
     - condition: template
       value_template: >-
+        {% set stale_threshold_sec = 600 %}
         {% set e = states.sensor.tibber_pulse_lavendelgangen_3_power %}
-        {{ e is not none and (now() - e.last_updated).total_seconds() > 600 }}
+        {{ e is not none and (now() - e.last_updated).total_seconds() > stale_threshold_sec }}
   actions:
     - action: homeassistant.reload_config_entry
       target:
@@ -23,8 +24,9 @@
     - delay: 00:00:30
     - condition: template
       value_template: >-
+        {% set stale_threshold_sec = 600 %}
         {% set e = states.sensor.tibber_pulse_lavendelgangen_3_power %}
-        {{ e is none or (now() - e.last_updated).total_seconds() > 600 }}
+        {{ e is none or (now() - e.last_updated).total_seconds() > stale_threshold_sec }}
     - action: persistent_notification.create
       data:
         title: "Tibber Integration Stuck"
@@ -54,12 +56,13 @@
 - id: "1770700000006"
   alias: EMHASS MPC Loop
   description: >-
-    Runs MPC every 7 min with dynamic prediction horizon matching
+    Runs MPC every 4 min with dynamic prediction horizon matching
     available price data. continual_publish handles sensor updates.
-    7 min chosen because it is coprime with the 15-min price slot
-    boundary, preventing systematic alignment that causes flip-flop.
+    4 min chosen because it is coprime with the 15-min price slot
+    boundary (GCD=1), preventing systematic alignment flip-flop,
+    while giving faster SOC feedback than the previous 7-min cycle.
   triggers:
-    - minutes: /7
+    - minutes: /4
       trigger: time_pattern
   conditions:
     - condition: template
@@ -94,58 +97,74 @@
   alias: EMHASS Battery Control
   description: >-
     Translates EMHASS p_batt_forecast into GoodWe eco-mode commands.
-    Triggered by MPC publishing a new forecast (state change), NOT by
-    a timer — this eliminates the race condition where Battery Control
-    would read stale forecast data from the previous MPC solve.
+    Triggered by MPC publishing a new forecast OR soc target change.
+
+    Anti-jitter: consecutive-idle ≥2 filter. The MPC re-solves every
+    ~4 min and often oscillates between charge/idle on adjacent slots.
+    To prevent rapid mode-cycling on the inverter, we require the
+    optimizer to say "idle" at least 2 consecutive times before we
+    actually transition to idle. Charge/discharge decisions are acted
+    on immediately (they have 100% action preservation). The streak
+    counter lives in input_number.emhass_idle_streak.
 
     Uses a lookahead over the next 4 slots (~1 hour) to determine
-    the dominant intent, preventing flip-flop when the optimizer
-    produces staccato discharge/idle patterns (e.g. discharge one
-    slot, idle the next). The GoodWe takes time to ramp, so rapid
-    mode switching prevents actual discharge.
+    the dominant intent. Power % is based on peak upcoming power in
+    the dominant direction, clamped to 5-100% of rated max (4800W).
 
-    Logic:
-      avg_upcoming > deadband  → eco_discharge
-      avg_upcoming < -deadband → eco_charge
-      otherwise                → eco_charge at SOC 5% (true idle)
-
-    Power % is based on the absolute value of the current slot
-    (p_batt), clamped to 5-100% of rated max (4800W).
-
-    Never uses 'general' mode because GoodWe general = self-use,
-    which discharges the battery uncontrolled.
+    eco_mode_soc buffer is computed dynamically from the MPC interval:
+    buffer = 1.3 × max SOC change per cycle (at full power). This
+    gives the inverter headroom to keep acting through the cycle
+    without hitting the SOC limit before the next re-solve.
 
     Grid export limit is set to 0W on discharge to prevent battery
-    energy spilling to grid at a loss (eco_discharge is "dumb" and
-    does not use meter feedback). The inverter hardware clamps
-    discharge to house load. On charge/idle the limit is lifted so
-    future solar export is not blocked.
+    energy spilling to grid at a loss. On charge/idle the limit is
+    lifted so solar export is not blocked.
   triggers:
     - trigger: state
       entity_id: sensor.p_batt_forecast
+    - trigger: state
+      entity_id: sensor.soc_batt_forecast
   conditions:
     - condition: template
       value_template: >-
-        {{ states('sensor.p_batt_forecast') not in ['unknown', 'unavailable'] }}
+        {{ states('sensor.p_batt_forecast') not in ['unknown', 'unavailable']
+           and states('sensor.soc_batt_forecast') not in ['unknown', 'unavailable'] }}
   actions:
     - variables:
-        p_batt: "{{ states('sensor.p_batt_forecast') | float(0) }}"
-        target_soc: "{{ states('sensor.soc_batt_forecast') | float(50) }}"
+        # --- Hardware constants ---
         batt_max_w: 4800
+        batt_capacity_wh: 14200
+        grid_export_limit_w: 10000
+        grid_export_discharge_w: 0
+        min_power_pct: 5
+        min_soc_pct: 5
+        max_soc_pct: 100
+        # GoodWe device_id for goodwe.set_parameter service
+        goodwe_device_id: "ea2d8925fee08c1321c7f038b61e111e"
+        # Default battery charge/discharge current (A)
+        default_charge_current: 25
+        default_discharge_current: 25
+        # --- Tuning parameters ---
+        mpc_interval_min: 4
         deadband_w: 200
-        # Lookahead: examine next 4 slots (~1 hour) from the schedule
-        # attribute to determine dominant intent (charge/discharge/idle).
-        # The optimizer often produces staccato patterns (discharge one
-        # slot, idle the next) which are mathematically equivalent but
-        # cause destructive flip-flop on the GoodWe.
+        idle_streak_required: 2
+        lookahead_slots: 4
+        soc_buffer_safety_factor: 1.3
+        soc_buffer_min_pct: 2
+        default_soc: 50
+        # --- Sensor readings ---
+        p_batt: "{{ states('sensor.p_batt_forecast') | float(0) }}"
+        target_soc: "{{ states('sensor.soc_batt_forecast') | float(default_soc) }}"
+        # --- Derived values ---
+        soc_buffer: >-
+          {{ [((batt_max_w * mpc_interval_min / 60 / batt_capacity_wh * 100) * soc_buffer_safety_factor) | round(0) | int, soc_buffer_min_pct] | max }}
         upcoming_slots: >-
           {% set sched = state_attr('sensor.p_batt_forecast', 'battery_scheduled_power') | default([], true) %}
           {% set ns = namespace(vals=[]) %}
-          {% for s in sched[:4] %}
+          {% for s in sched[:lookahead_slots] %}
             {% set ns.vals = ns.vals + [s.p_batt_forecast | float(0)] %}
           {% endfor %}
           {{ ns.vals }}
-        # Average determines direction (charge vs discharge vs idle)
         avg_upcoming: >-
           {% set slots = upcoming_slots %}
           {% if slots | length > 0 %}
@@ -153,10 +172,6 @@
           {% else %}
             {{ p_batt }}
           {% endif %}
-        # Peak of upcoming slots in the dominant direction sets the
-        # power ceiling. eco_mode_power is just a cap — the inverter
-        # won't discharge more than house load needs, so setting it
-        # to the peak is safe and lets the inverter follow the curve.
         peak_discharge: >-
           {% set slots = upcoming_slots %}
           {% set ns = namespace(peak=0) %}
@@ -172,21 +187,52 @@
           {% endfor %}
           {{ ns.peak }}
         discharge_pct: >-
-          {{ [[((peak_discharge | float) / batt_max_w * 100) | round(0) | int, 5] | max, 100] | min }}
+          {{ [[((peak_discharge | float) / batt_max_w * 100) | round(0) | int, min_power_pct] | max, 100] | min }}
         charge_pct: >-
-          {{ [[((peak_charge | float) / batt_max_w * 100) | round(0) | int, 5] | max, 100] | min }}
+          {{ [[((peak_charge | float) / batt_max_w * 100) | round(0) | int, min_power_pct] | max, 100] | min }}
+        # Classify raw decision from lookahead
+        raw_decision: >-
+          {% if avg_upcoming | float < -deadband_w %}charge
+          {% elif avg_upcoming | float > deadband_w %}discharge
+          {% else %}idle{% endif %}
+        # Read and update idle streak
+        prev_streak: "{{ states('input_number.emhass_idle_streak') | int(0) }}"
+        new_streak: >-
+          {% if raw_decision == 'idle' %}{{ prev_streak + 1 }}
+          {% else %}0{% endif %}
+        # Final decision: suppress idle unless streak reaches threshold
+        decision: >-
+          {% if raw_decision == 'idle' and new_streak | int < idle_streak_required %}hold
+          {% else %}{{ raw_decision }}{% endif %}
+    # Always persist the streak counter
+    - action: input_number.set_value
+      target:
+        entity_id: input_number.emhass_idle_streak
+      data:
+        value: "{{ new_streak }}"
     - choose:
         # --- CHARGE ---
+        # eco_charge: grid+PV → battery at controlled rate.
+        # Restore both charge/discharge currents (clears any idle block).
         - conditions:
             - condition: template
-              value_template: "{{ avg_upcoming | float < -deadband_w }}"
+              value_template: "{{ decision == 'charge' }}"
           sequence:
-            # Lift grid export limit so future solar can export
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
+                parameter: battery_charge_current
+                value: "{{ default_charge_current }}"
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
+                parameter: battery_discharge_current
+                value: "{{ default_discharge_current }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_grid_export_limit
               data:
-                value: "10000"
+                value: "{{ grid_export_limit_w }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_power
@@ -196,7 +242,7 @@
               target:
                 entity_id: number.goodwe_eco_mode_soc
               data:
-                value: "{{ target_soc | round(0) | int }}"
+                value: "{{ [target_soc | round(0) | int + soc_buffer | int, max_soc_pct] | min }}"
             - action: select.select_option
               target:
                 entity_id: select.goodwe_inverter_operation_mode
@@ -204,14 +250,23 @@
                 option: eco_charge
 
         # --- DISCHARGE ---
+        # eco_discharge: battery → house at controlled rate.
+        # grid_export_limit=0 prevents battery→grid spill.
+        # Restore both charge/discharge currents (clears any idle block).
         - conditions:
             - condition: template
-              value_template: "{{ avg_upcoming | float > deadband_w }}"
+              value_template: "{{ decision == 'discharge' }}"
           sequence:
-            # Clamp grid export to 0W — eco_discharge is "dumb" and
-            # will push full power to grid if house load < discharge.
-            # The hardware export limit forces the inverter to throttle
-            # discharge down to match house consumption.
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
+                parameter: battery_charge_current
+                value: "{{ default_charge_current }}"
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
+                parameter: battery_discharge_current
+                value: "{{ default_discharge_current }}"
             - action: switch.turn_on
               target:
                 entity_id: switch.goodwe_grid_export_limit_switch
@@ -219,7 +274,7 @@
               target:
                 entity_id: number.goodwe_grid_export_limit
               data:
-                value: "0"
+                value: "{{ grid_export_discharge_w }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_power
@@ -229,40 +284,55 @@
               target:
                 entity_id: number.goodwe_eco_mode_soc
               data:
-                value: "{{ [target_soc | round(0) | int - 10, 5] | max }}"
+                value: "{{ [target_soc | round(0) | int - soc_buffer | int, min_soc_pct] | max }}"
             - action: select.select_option
               target:
                 entity_id: select.goodwe_inverter_operation_mode
               data:
                 option: eco_discharge
 
-      # --- IDLE → eco_charge hold ---
-      # True idle: set target SOC to minimum (5%). Battery is always
-      # above 5%, so eco_charge has nothing to do — zero power drawn.
-      # eco_charge won't discharge, so the battery stays put.
-      default:
-        # Lift grid export limit so future solar can export
-        - action: number.set_value
-          target:
-            entity_id: number.goodwe_grid_export_limit
-          data:
-            value: "10000"
-        - action: number.set_value
-          target:
-            entity_id: number.goodwe_eco_mode_power
-          data:
-            value: "5"
-        - action: number.set_value
-          target:
-            entity_id: number.goodwe_eco_mode_soc
-          data:
-            value: "5"
-        - action: select.select_option
-          target:
-            entity_id: select.goodwe_inverter_operation_mode
-          data:
-            option: eco_charge
-  mode: single
+        # --- IDLE (streak reached) ---
+        # general mode + battery_discharge_current=0:
+        # - PV powers house first (self-consumption)
+        # - PV surplus charges battery
+        # - Battery CANNOT discharge (discharge_current=0)
+        # - Export only when battery full + excess PV
+        # - No grid→battery charge (general mode never does this)
+        # Order matters: set_operation_mode(general) calls
+        # _clear_battery_mode_param(), so set discharge_current
+        # AFTER the mode change to ensure it sticks.
+        - conditions:
+            - condition: template
+              value_template: "{{ decision == 'idle' }}"
+          sequence:
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
+                parameter: battery_charge_current
+                value: "{{ default_charge_current }}"
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_grid_export_limit
+              data:
+                value: "{{ grid_export_limit_w }}"
+            - action: select.select_option
+              target:
+                entity_id: select.goodwe_inverter_operation_mode
+              data:
+                option: general
+            - delay:
+                seconds: 2
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
+                parameter: battery_discharge_current
+                value: 0
+
+      # --- HOLD: idle suppressed, keep current mode ---
+      # The optimizer said idle but streak < threshold.
+      # Do nothing — let the previous charge/discharge continue.
+      default: []
+  mode: restart
 
 # ===========================================================================
 # Failsafe
@@ -271,41 +341,54 @@
 - id: "1770700000004"
   alias: EMHASS Failsafe
   description: >-
-    If p_batt_forecast is stale >20 min, hold the battery at
-    current SOC using eco_charge at minimum power. Checks every
-    7 min. This prevents uncontrolled discharge if EMHASS stops.
+    If p_batt_forecast is stale >20 min, switch to general mode
+    with discharge blocked (battery_discharge_current=0). Battery
+    holds SOC, PV charges it, house draws from grid. Checks every
+    7 min. Prevents uncontrolled discharge if EMHASS stops.
   triggers:
     - minutes: /7
       trigger: time_pattern
   conditions:
     - condition: template
       value_template: >-
+        {% set stale_threshold_sec = 1200 %}
         {% set sensor = states.sensor.p_batt_forecast %}
         {{ sensor is none or
            sensor.state in ['unknown', 'unavailable'] or
-           (now() - sensor.last_updated).total_seconds() > 1200 }}
+           (now() - sensor.last_updated).total_seconds() > stale_threshold_sec }}
   actions:
+    - variables:
+        goodwe_device_id: "ea2d8925fee08c1321c7f038b61e111e"
+        default_charge_current: 25
+        grid_export_limit_w: 10000
+    - action: goodwe.set_parameter
+      data:
+        device_id: "{{ goodwe_device_id }}"
+        parameter: battery_charge_current
+        value: "{{ default_charge_current }}"
     - action: number.set_value
       target:
-        entity_id: number.goodwe_eco_mode_power
+        entity_id: number.goodwe_grid_export_limit
       data:
-        value: "5"
-    - action: number.set_value
-      target:
-        entity_id: number.goodwe_eco_mode_soc
-      data:
-        value: "5"
+        value: "{{ grid_export_limit_w }}"
     - action: select.select_option
       target:
         entity_id: select.goodwe_inverter_operation_mode
       data:
-        option: eco_charge
+        option: general
+    - delay:
+        seconds: 2
+    - action: goodwe.set_parameter
+      data:
+        device_id: "{{ goodwe_device_id }}"
+        parameter: battery_discharge_current
+        value: 0
     - action: persistent_notification.create
       data:
         title: "EMHASS Failsafe Triggered"
         message: >-
-          p_batt_forecast stale >20 min. Inverter set to eco_charge
-          with target SOC 5% (true idle).
+          p_batt_forecast stale >20 min. General mode +
+          discharge blocked. Battery holds SOC, PV charges.
   mode: single
 
 # ===========================================================================
@@ -329,7 +412,7 @@
     - condition: state
       entity_id: input_boolean.solar_panels_snow_covered
       state: "off"
-      for: "01:00:00"
+      for: "01:00:00" # relatch_cooldown: min off-time before re-latching
   actions:
     - action: input_boolean.turn_on
       target:
@@ -356,12 +439,16 @@
   triggers:
     - trigger: template
       value_template: >-
+        {% set snow_clear_min_w = 200 %}
+        {% set snow_clear_ratio = 0.50 %}
+        {% set midday_start_hour = 9 %}
+        {% set midday_end_hour = 15 %}
         {% set forecast = states('sensor.p_pv_forecast') | float(0) %}
         {% set actual = states('sensor.goodwe_pv_power') | float(0) %}
-        {% set midday = 9 <= now().hour < 15 %}
-        {{ midday and forecast > 200 and actual > 200
-           and actual > forecast * 0.50 }}
-      for: "00:30:00"
+        {% set midday = midday_start_hour <= now().hour < midday_end_hour %}
+        {{ midday and forecast > snow_clear_min_w and actual > snow_clear_min_w
+           and actual > forecast * snow_clear_ratio }}
+      for: "00:30:00" # snow_clear_sustain_duration
   conditions:
     - condition: state
       entity_id: input_boolean.solar_panels_snow_covered

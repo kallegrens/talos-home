@@ -24,6 +24,16 @@ input_boolean:
     icon: mdi:calendar-arrow-right
     initial: true
 
+input_number:
+  emhass_idle_streak:
+    name: EMHASS consecutive idle count
+    icon: mdi:counter
+    min: 0
+    max: 100
+    step: 1
+    initial: 0
+    mode: box
+
 # ---------------------------------------------------------------------------
 # EMHASS REST commands
 # ---------------------------------------------------------------------------
@@ -37,6 +47,8 @@ rest_command:
       {%- set curr_soc = states('sensor.goodwe_battery_state_of_charge') | float(0) / 100 -%}
       {%- set soc_final_target = 0.05 -%}
       {%- set snow = is_state('input_boolean.solar_panels_snow_covered', 'on') -%}
+      {%- set bms_no_discharge = is_state('binary_sensor.bms_discharge_disabled', 'on') -%}
+      {%- set bms_no_charge = is_state('binary_sensor.bms_charge_disabled', 'on') -%}
       {%- set max_horizon_slots = 288 -%}
       {%- set slots_per_day = 96 -%}
       {%- set slot_minutes = 15 -%}
@@ -59,7 +71,9 @@ rest_command:
         "prediction_horizon": {{ horizon }},
         "operating_hours_of_each_deferrable_load": [0, 0],
         "load_cost_forecast": {{ buy_dict.d | tojson }},
-        "prod_price_forecast": {{ sell_dict.d | tojson }}
+        "prod_price_forecast": {{ sell_dict.d | tojson }},
+        "battery_minimum_state_of_charge": {{ curr_soc if bms_no_discharge else 0.05 }},
+        "battery_maximum_state_of_charge": {{ curr_soc if bms_no_charge else 1.0 }}
         {%- if snow -%}
           {%- set ypv = state_attr('sensor.pv_daily_profile', 'yesterday') | default([], true) -%}
           {%- set slot_idx = (now().hour * (slots_per_day // 24)) + (now().minute // slot_minutes) -%}
@@ -268,6 +282,38 @@ template:
           {{ forecast > min_forecast_w and actual < forecast * snow_threshold }}
         icon: >-
           {{ 'mdi:snowflake-alert' if this.state == 'on' else 'mdi:solar-panel' }}
+
+      # BMS limit detection — parsed from GoodWe diagnostic status register.
+      # delay_on: flag must persist 2 min before clamp activates (debounce
+      #   mode-switch noise — the diag register flips between "Charge time
+      #   on" / "Discharge time on" every ~7 min but BMS flags stay stable).
+      # delay_off: wait 5 min after BMS lifts restriction before unclamping
+      #   (prevents oscillation at the BMS edge).
+      # These feed into the MPC payload to set battery_minimum/maximum_soc
+      # equal to current SOC, so EMHASS doesn't plan impossible actions.
+      - name: BMS Discharge Disabled
+        unique_id: bms_discharge_disabled
+        device_class: problem
+        delay_on:
+          minutes: 2
+        delay_off:
+          minutes: 5
+        state: >-
+          {{ 'BMS: Discharge disabled' in states('sensor.goodwe_diag_status') }}
+        icon: >-
+          {{ 'mdi:battery-off-outline' if this.state == 'on' else 'mdi:battery' }}
+
+      - name: BMS Charge Disabled
+        unique_id: bms_charge_disabled
+        device_class: problem
+        delay_on:
+          minutes: 2
+        delay_off:
+          minutes: 5
+        state: >-
+          {{ 'BMS: Charge disabled' in states('sensor.goodwe_diag_status') }}
+        icon: >-
+          {{ 'mdi:battery-charging-off' if this.state == 'on' else 'mdi:battery-charging' }}
 
 http:
   use_x_forwarded_for: true
