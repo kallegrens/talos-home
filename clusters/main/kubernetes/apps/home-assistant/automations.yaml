@@ -190,10 +190,11 @@
           {{ [[((peak_discharge | float) / batt_max_w * 100) | round(0) | int, min_power_pct] | max, 100] | min }}
         charge_pct: >-
           {{ [[((peak_charge | float) / batt_max_w * 100) | round(0) | int, min_power_pct] | max, 100] | min }}
-        # Classify raw decision from lookahead
+        # Classify raw decision from CURRENT slot (p_batt).
+        # Lookahead only drives rate (peak_charge/discharge_pct) and SOC targets.
         raw_decision: >-
-          {% if avg_upcoming | float < -deadband_w %}charge
-          {% elif avg_upcoming | float > deadband_w %}discharge
+          {% if p_batt | float < -deadband_w %}charge
+          {% elif p_batt | float > deadband_w %}discharge
           {% else %}idle{% endif %}
         # Read and update idle streak
         prev_streak: "{{ states('input_number.emhass_idle_streak') | int(0) }}"
