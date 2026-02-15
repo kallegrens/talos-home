@@ -104,12 +104,11 @@
     To prevent rapid mode-cycling on the inverter, we require the
     optimizer to say "idle" at least 2 consecutive times before we
     actually transition to idle. Charge/discharge decisions are acted
-    on immediately (they have 100% action preservation). The streak
-    counter lives in input_number.emhass_idle_streak.
+    on immediately. The streak counter lives in
+    input_number.emhass_idle_streak.
 
-    Uses a lookahead over the next 4 slots (~1 hour) to determine
-    the dominant intent. Power % is based on peak upcoming power in
-    the dominant direction, clamped to 5-100% of rated max (4800W).
+    Decision and rate both come from the current slot p_batt value.
+    Power % is |p_batt| / 4800W, clamped to 5-100%.
 
     eco_mode_soc buffer is computed dynamically from the MPC interval:
     buffer = 1.3 × max SOC change per cycle (at full power). This
@@ -148,7 +147,6 @@
         mpc_interval_min: 4
         deadband_w: 200
         idle_streak_required: 2
-        lookahead_slots: 4
         soc_buffer_safety_factor: 1.3
         soc_buffer_min_pct: 2
         default_soc: 50
@@ -158,40 +156,10 @@
         # --- Derived values ---
         soc_buffer: >-
           {{ [((batt_max_w * mpc_interval_min / 60 / batt_capacity_wh * 100) * soc_buffer_safety_factor) | round(0) | int, soc_buffer_min_pct] | max }}
-        upcoming_slots: >-
-          {% set sched = state_attr('sensor.p_batt_forecast', 'battery_scheduled_power') | default([], true) %}
-          {% set ns = namespace(vals=[]) %}
-          {% for s in sched[:lookahead_slots] %}
-            {% set ns.vals = ns.vals + [s.p_batt_forecast | float(0)] %}
-          {% endfor %}
-          {{ ns.vals }}
-        avg_upcoming: >-
-          {% set slots = upcoming_slots %}
-          {% if slots | length > 0 %}
-            {{ slots | sum / slots | length }}
-          {% else %}
-            {{ p_batt }}
-          {% endif %}
-        peak_discharge: >-
-          {% set slots = upcoming_slots %}
-          {% set ns = namespace(peak=0) %}
-          {% for v in slots if v > 0 %}
-            {% if v > ns.peak %}{% set ns.peak = v %}{% endif %}
-          {% endfor %}
-          {{ ns.peak }}
-        peak_charge: >-
-          {% set slots = upcoming_slots %}
-          {% set ns = namespace(peak=0) %}
-          {% for v in slots if v < 0 %}
-            {% if v | abs > ns.peak %}{% set ns.peak = v | abs %}{% endif %}
-          {% endfor %}
-          {{ ns.peak }}
-        discharge_pct: >-
-          {{ [[((peak_discharge | float) / batt_max_w * 100) | round(0) | int, min_power_pct] | max, 100] | min }}
-        charge_pct: >-
-          {{ [[((peak_charge | float) / batt_max_w * 100) | round(0) | int, min_power_pct] | max, 100] | min }}
-        # Classify raw decision from CURRENT slot (p_batt).
-        # Lookahead only drives rate (peak_charge/discharge_pct) and SOC targets.
+        # Power % from current slot p_batt, clamped 5-100%
+        power_pct: >-
+          {{ [[(( p_batt | float | abs) / batt_max_w * 100) | round(0) | int, min_power_pct] | max, 100] | min }}
+        # Decision from current slot
         raw_decision: >-
           {% if p_batt | float < -deadband_w %}charge
           {% elif p_batt | float > deadband_w %}discharge
@@ -238,7 +206,7 @@
               target:
                 entity_id: number.goodwe_eco_mode_power
               data:
-                value: "{{ charge_pct }}"
+                value: "{{ power_pct }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_soc
@@ -280,7 +248,7 @@
               target:
                 entity_id: number.goodwe_eco_mode_power
               data:
-                value: "{{ discharge_pct }}"
+                value: "{{ power_pct }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_eco_mode_soc

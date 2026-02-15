@@ -138,10 +138,9 @@ following the mode change to ensure it sticks.
 ### Other Parameters
 
 - **Deadband:** 200W — prevents mode switching on small values
-- **Lookahead:** 4 slots (~1 hour) — smooths staccato optimizer output
-- **Power %:** Based on peak of upcoming slots in dominant direction
+- **Power %:** `|p_batt| / 4800W × 100`, clamped 5–100%
 - **Idle streak:** Requires 2 consecutive idle decisions before switching
-  (prevents staccato mode changes)
+  (prevents staccato mode changes from MPC re-solves)
 - **Grid export:** Set to 0W on discharge (prevents battery→grid spill). Left
   unrestricted (10 kW cap) on charge and idle so PV surplus can reach the grid
   when the battery is full.
