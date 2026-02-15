@@ -28,7 +28,18 @@ The full documentation directory for EMHASS can be found at `emhass/resources/em
 
 ## Configuration
 
-Config lives in `emhass-config.yaml` (ConfigMap). Key settings:
+Config lives in `emhass-config.yaml` (ConfigMap). The ConfigMap is mounted
+via `subPath`, so Kubernetes will **not** propagate changes into the running
+pod automatically. After editing the config:
+
+```bash
+flux reconcile kustomization cluster --with-source   # Flux updates the ConfigMap
+kubectl rollout restart deployment/emhass -n emhass   # Pod restarts with new config
+```
+
+Never `kubectl apply` the ConfigMap directly — let Flux own the resource.
+
+Key settings:
 
 - 15-min optimization time step, 48-slot default prediction horizon
 - Open-Meteo weather forecasting (Gothenburg area)
