@@ -182,21 +182,14 @@
     - choose:
         # --- CHARGE ---
         # eco_charge: grid+PV → battery at controlled rate.
-        # Restore both charge/discharge currents (clears any idle block).
+        # Order matters: set eco mode FIRST, then restore currents
+        # AFTER a delay. The work_mode register write inside
+        # set_operation_mode can reset battery current registers,
+        # so they must be written last to stick.
         - conditions:
             - condition: template
               value_template: "{{ decision == 'charge' }}"
           sequence:
-            - action: goodwe.set_parameter
-              data:
-                device_id: "{{ goodwe_device_id }}"
-                parameter: battery_charge_current
-                value: "{{ default_charge_current }}"
-            - action: goodwe.set_parameter
-              data:
-                device_id: "{{ goodwe_device_id }}"
-                parameter: battery_discharge_current
-                value: "{{ default_discharge_current }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_grid_export_limit
@@ -217,15 +210,8 @@
                 entity_id: select.goodwe_inverter_operation_mode
               data:
                 option: eco_charge
-
-        # --- DISCHARGE ---
-        # eco_discharge: battery → house at controlled rate.
-        # grid_export_limit=0 prevents battery→grid spill.
-        # Restore both charge/discharge currents (clears any idle block).
-        - conditions:
-            - condition: template
-              value_template: "{{ decision == 'discharge' }}"
-          sequence:
+            - delay:
+                seconds: 2
             - action: goodwe.set_parameter
               data:
                 device_id: "{{ goodwe_device_id }}"
@@ -236,6 +222,18 @@
                 device_id: "{{ goodwe_device_id }}"
                 parameter: battery_discharge_current
                 value: "{{ default_discharge_current }}"
+
+        # --- DISCHARGE ---
+        # eco_discharge: battery → house at controlled rate.
+        # grid_export_limit=0 prevents battery→grid spill.
+        # Order matters: set eco mode FIRST, then restore currents
+        # AFTER a delay. The work_mode register write inside
+        # set_operation_mode can reset battery current registers
+        # (observed: idle→discharge stuck at 0A without this).
+        - conditions:
+            - condition: template
+              value_template: "{{ decision == 'discharge' }}"
+          sequence:
             - action: switch.turn_on
               target:
                 entity_id: switch.goodwe_grid_export_limit_switch
@@ -259,6 +257,18 @@
                 entity_id: select.goodwe_inverter_operation_mode
               data:
                 option: eco_discharge
+            - delay:
+                seconds: 2
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
+                parameter: battery_charge_current
+                value: "{{ default_charge_current }}"
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
+                parameter: battery_discharge_current
+                value: "{{ default_discharge_current }}"
 
         # --- IDLE (streak reached) ---
         # general mode + battery_discharge_current=0:
