@@ -33,7 +33,7 @@ via `subPath`, so Kubernetes will **not** propagate changes into the running
 pod automatically. After editing the config:
 
 ```bash
-flux reconcile kustomization cluster --with-source   # Flux updates the ConfigMap
+flux reconcile source git cluster                     # Flux pulls latest git
 kubectl rollout restart deployment/emhass -n emhass   # Pod restarts with new config
 ```
 
