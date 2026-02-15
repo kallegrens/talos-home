@@ -131,6 +131,7 @@
   actions:
     - variables:
         # --- Hardware constants ---
+        inverter_rated_w: 10000
         batt_max_w: 5050
         batt_capacity_wh: 14200
         grid_export_limit_w: 10000
@@ -156,9 +157,14 @@
         # --- Derived values ---
         soc_buffer: >-
           {{ [((batt_max_w * mpc_interval_min / 60 / batt_capacity_wh * 100) * soc_buffer_safety_factor) | round(0) | int, soc_buffer_min_pct] | max }}
-        # Power % from current slot p_batt, clamped 5-100%
+        # Max eco_mode_power % the battery can physically deliver/absorb
+        max_power_pct: "{{ (batt_max_w / inverter_rated_w * 100) | round(0) | int }}"
+        # Power % of inverter rated power, clamped [min_power_pct .. max_power_pct]
+        # GoodWe firmware interprets eco_mode_power as % of inverter_rated_w (10kW),
+        # NOT battery max. E.g. 20% = 2000W cap on charge/discharge rate.
+        # Upper clamp = batt_max_w/inverter_rated_w ≈ 50% (battery can't exceed 5050W).
         power_pct: >-
-          {{ [[(( p_batt | float | abs) / batt_max_w * 100) | round(0) | int, min_power_pct] | max, 100] | min }}
+          {{ [[(( p_batt | float | abs) / inverter_rated_w * 100) | round(0) | int, min_power_pct] | max, max_power_pct | int] | min }}
         # Decision from current slot
         raw_decision: >-
           {% if p_batt | float < -deadband_w %}charge

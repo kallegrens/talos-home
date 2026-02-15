@@ -149,7 +149,11 @@ following the mode change to ensure it sticks.
 ### Other Parameters
 
 - **Deadband:** 200W — prevents mode switching on small values
-- **Power %:** `|p_batt| / 5050W × 100`, clamped 5–100%
+- **Power %:** `|p_batt| / inverter_rated_w (10000W) × 100`, clamped 5–100%.
+  GoodWe firmware interprets eco_mode_power as % of inverter rated power,
+  NOT battery max. This allows EMHASS to set a real watt-level discharge cap
+  (e.g. 2000W forecast → 20% → inverter limits battery to 2000W, grid covers
+  the rest of house consumption).
 - **Idle streak:** Requires 2 consecutive idle decisions before switching
   (prevents staccato mode changes from MPC re-solves)
 - **Grid export:** Set to 0W on discharge (prevents battery→grid spill). Left
