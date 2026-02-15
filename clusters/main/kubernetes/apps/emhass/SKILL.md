@@ -32,7 +32,7 @@ Config lives in `emhass-config.yaml` (ConfigMap). Key settings:
 
 - 15-min optimization time step, 48-slot default prediction horizon
 - Open-Meteo weather forecasting (Gothenburg area)
-- Battery: 14.2 kWh capacity, 4800W max charge/discharge
+- Battery: 14.2 kWh capacity, 5050W max charge/discharge
 - PV: 16 modules, 2 strings, 10kW inverter, 15° tilt, 125° azimuth
 - Reads HA sensors via long-lived token in `secrets_emhass.yaml`
 
@@ -138,7 +138,7 @@ following the mode change to ensure it sticks.
 ### Other Parameters
 
 - **Deadband:** 200W — prevents mode switching on small values
-- **Power %:** `|p_batt| / 4800W × 100`, clamped 5–100%
+- **Power %:** `|p_batt| / 5050W × 100`, clamped 5–100%
 - **Idle streak:** Requires 2 consecutive idle decisions before switching
   (prevents staccato mode changes from MPC re-solves)
 - **Grid export:** Set to 0W on discharge (prevents battery→grid spill). Left
