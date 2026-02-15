@@ -8,7 +8,7 @@ automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
 recorder:
-  purge_keep_days: 30
+  purge_keep_days: 365
   commit_interval: 3
   db_url: "postgresql://home-assistant:PLACEHOLDERPASSWORD@home-assistant-cnpg-main-rw:5432/home-assistant?client_encoding=utf8"
 
