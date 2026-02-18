@@ -46,7 +46,10 @@ spec:
                 # The HTTP probe would pass even if the continual_publish
                 # thread crashed (Flask stays up, sensors go stale).
                 # MPC runs every 4 min, so 15 min staleness = something broke.
-                # Grace period: skip check if pod uptime < 10 min (cold start).
+                # Grace period: skip check for first 10 min of CONTAINER life.
+                # NOTE: /proc/uptime tracks pod (sandbox) uptime, NOT container
+                # uptime — it does not reset on container restart. We derive
+                # true container age from PID 1's start time instead.
                 enabled: true
                 custom: true
                 spec:
@@ -55,8 +58,10 @@ spec:
                       - sh
                       - -c
                       - |
-                        uptime_sec=$(awk '{print int($1)}' /proc/uptime)
-                        [ "$uptime_sec" -lt 600 ] && exit 0
+                        up=$(awk '{print int($1)}' /proc/uptime)
+                        p1=$(awk '{print int($22/100)}' /proc/1/stat)
+                        age=$((up - p1))
+                        [ "$age" -lt 600 ] && exit 0
                         find /data/opt_res_latest.csv -mmin -15 | grep -q .
                   initialDelaySeconds: 60
                   periodSeconds: 60
