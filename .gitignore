@@ -15,4 +15,7 @@ clusters/main/talos/talenv.yaml
 *.log
 *.txt
 prompts/
-clusters/main/kubernetes/apps/emhass/resources/
+resources/
+*.ipynb
+*.code-workspace
+*.md

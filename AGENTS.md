@@ -1,7 +1,6 @@
 # Agent Instructions
 
 > Repository-level context for AI coding agents working on **talos-home**.
-> See <https://agentskills.io/home> for the Agent Skills initiative.
 
 ## Repository Overview
 

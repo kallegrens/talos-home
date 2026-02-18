@@ -24,6 +24,13 @@ input_boolean:
     icon: mdi:calendar-arrow-right
     initial: false
 
+input_datetime:
+  emhass_last_publish:
+    name: EMHASS last publish
+    icon: mdi:heart-pulse
+    has_date: true
+    has_time: true
+
 input_number:
   emhass_idle_streak:
     name: EMHASS consecutive idle count
@@ -96,6 +103,13 @@ rest_command:
     content_type: "application/json"
     payload: "{}"
     timeout: 60
+
+  emhass_publish_data:
+    url: "http://emhass.emhass.svc.cluster.local:5000/action/publish-data"
+    method: POST
+    content_type: "application/json"
+    payload: "{}"
+    timeout: 30
 
 # ---------------------------------------------------------------------------
 # Template sensors

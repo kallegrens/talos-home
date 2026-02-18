@@ -57,7 +57,11 @@
   alias: EMHASS MPC Loop
   description: >-
     Runs MPC every 4 min with dynamic prediction horizon matching
-    available price data. continual_publish handles sensor updates.
+    available price data. After MPC completes, an explicit
+    publish-data call posts results to HA sensors. This is a
+    resilience measure: EMHASS's continual_publish background
+    thread can crash silently, leaving sensors stale while MPC
+    keeps running. The explicit publish ensures sensor freshness.
     4 min chosen because it is coprime with the 15-min price slot
     boundary (GCD=1), preventing systematic alignment flip-flop,
     while giving faster SOC feedback than the previous 7-min cycle.
@@ -71,6 +75,14 @@
            and states('sensor.goodwe_battery_state_of_charge') | is_number }}
   actions:
     - action: rest_command.emhass_mpc_optim
+    - delay:
+        seconds: 2
+    - action: rest_command.emhass_publish_data
+    - action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.emhass_last_publish
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
   mode: single
 
 - id: "1770700000007"
@@ -326,10 +338,16 @@
 - id: "1770700000004"
   alias: EMHASS Failsafe
   description: >-
-    If p_batt_forecast is stale >20 min, switch to general mode
+    If EMHASS hasn't published for >20 min, switch to general mode
     with discharge blocked (battery_discharge_current=0). Battery
     holds SOC, PV charges it, house draws from grid. Checks every
     7 min. Prevents uncontrolled discharge if EMHASS stops.
+
+    Uses input_datetime.emhass_last_publish as a heartbeat rather
+    than sensor.p_batt_forecast.last_updated, because HA does not
+    bump last_updated when EMHASS posts identical state+attributes
+    (common during flat forecast periods). The heartbeat is set by
+    the MPC Loop automation after every successful publish cycle.
   triggers:
     - minutes: /7
       trigger: time_pattern
@@ -337,10 +355,9 @@
     - condition: template
       value_template: >-
         {% set stale_threshold_sec = 1200 %}
-        {% set sensor = states.sensor.p_batt_forecast %}
-        {{ sensor is none or
-           sensor.state in ['unknown', 'unavailable'] or
-           (now() - sensor.last_updated).total_seconds() > stale_threshold_sec }}
+        {% set hb_ts = state_attr('input_datetime.emhass_last_publish', 'timestamp') %}
+        {{ hb_ts is none or
+           (as_timestamp(now()) - hb_ts) > stale_threshold_sec }}
   actions:
     - variables:
         goodwe_device_id: "ea2d8925fee08c1321c7f038b61e111e"

@@ -78,6 +78,8 @@ NOT work.
 sensor (e.g. `input_boolean.x` as `trigger: state` so toggling it fires the
 template), or wait for the next `time_pattern` trigger.
 
+Note that the sensor being **stale** and the sensor just getting the **same** data consecutively is not the same thing. When Home Assistant receives a sensor where the value is not updated it does not make a new record.
+
 ## Testing Workflow
 
 1. `kubectl cp` the edited file into the pod at `/config/`
