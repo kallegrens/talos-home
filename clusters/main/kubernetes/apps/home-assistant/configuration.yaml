@@ -159,7 +159,6 @@ template:
         unique_id: emhass_buy_price_forecast
         unit_of_measurement: "SEK/kWh"
         device_class: monetary
-        state_class: measurement
         state: >-
           {%- set slot_minutes = 15 -%}
           {%- set t = now() -%}
@@ -208,7 +207,6 @@ template:
         unique_id: emhass_sell_price_forecast
         unit_of_measurement: "SEK/kWh"
         device_class: monetary
-        state_class: measurement
         state: >-
           {%- set slot_minutes = 15 -%}
           {%- set t = now() -%}
