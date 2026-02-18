@@ -25,7 +25,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup Homebrew
-        uses: Homebrew/actions/setup-homebrew@9ceb7934560eb61d131dde205a6c2d77b2e1529d
+        uses: Homebrew/actions/setup-homebrew@04a6d8cfe9d251e2afb78c5bdc6274ec9642aea2
       - name: Setup Workflow Tools
         run: brew install fluxcd/tap/flux kubeconform kustomize
       - name: Run kubeconform
