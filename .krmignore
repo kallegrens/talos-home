@@ -1,4 +1,6 @@
 .github/
+
 # Home Assistant config files (not Kubernetes manifests)
+
 clusters/main/kubernetes/apps/home-assistant/automations.yaml
 clusters/main/kubernetes/apps/home-assistant/configuration.yaml
