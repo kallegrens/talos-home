@@ -289,41 +289,55 @@
                 value: "{{ default_discharge_current }}"
 
         # --- IDLE (streak reached) ---
-        # general mode + battery_discharge_current=0:
-        # - PV powers house first (self-consumption)
-        # - PV surplus charges battery
-        # - Battery CANNOT discharge (discharge_current=0)
-        # - Export only when battery full + excess PV
-        # - No grid→battery charge (general mode never does this)
-        # Order matters: set_operation_mode(general) calls
-        # _clear_battery_mode_param(), so set discharge_current
-        # AFTER the mode change to ensure it sticks.
+        # eco_charge at current SOC:
+        # - PV powers house first, surplus charges battery
+        # - Grid covers house load when PV insufficient
+        # - Battery does NOT discharge (eco_charge never discharges)
+        # - Backup output stays energized (well-defined eco mode)
+        # - No grid→battery charge (already at/above target SOC)
+        #
+        # We use eco_charge instead of general mode because general
+        # mode allows self-consumption discharge, which would drain
+        # the battery when EMHASS intends to preserve it.
+        # We avoid general+discharge_current=0 because that breaks
+        # grid passthrough to backup terminals at low SOC, causing
+        # Check/Wait cycling → fuse trip. See fuse-trip-analysis.ipynb.
         - conditions:
             - condition: template
               value_template: "{{ decision == 'idle' }}"
           sequence:
-            - action: goodwe.set_parameter
-              data:
-                device_id: "{{ goodwe_device_id }}"
-                parameter: battery_charge_current
-                value: "{{ default_charge_current }}"
             - action: number.set_value
               target:
                 entity_id: number.goodwe_grid_export_limit
               data:
                 value: "{{ grid_export_limit_w }}"
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_eco_mode_power
+              data:
+                value: "{{ min_power_pct }}"
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_eco_mode_soc
+              data:
+                value: "{{ states('sensor.goodwe_battery_state_of_charge') | int(min_soc_pct) }}"
             - action: select.select_option
               target:
                 entity_id: select.goodwe_inverter_operation_mode
               data:
-                option: general
+                option: eco_charge
             - delay:
                 seconds: 2
             - action: goodwe.set_parameter
               data:
                 device_id: "{{ goodwe_device_id }}"
+                parameter: battery_charge_current
+                value: "{{ default_charge_current }}"
+            - action: goodwe.set_parameter
+              data:
+                device_id: "{{ goodwe_device_id }}"
                 parameter: battery_discharge_current
-                value: 0
+                value: "{{ default_discharge_current }}"
 
       # --- HOLD: idle suppressed, keep current mode ---
       # The optimizer said idle but streak < threshold.
@@ -338,10 +352,12 @@
 - id: "1770700000004"
   alias: EMHASS Failsafe
   description: >-
-    If EMHASS hasn't published for >20 min, switch to general mode
-    with discharge blocked (battery_discharge_current=0). Battery
-    holds SOC, PV charges it, house draws from grid. Checks every
-    7 min. Prevents uncontrolled discharge if EMHASS stops.
+    If EMHASS hasn't published for >20 min, switch to general mode.
+    Battery self-consumes for house loads, PV charges battery and
+    powers house. This is safe at any SOC because
+    depth_of_discharge_backup=97% ensures the backup output stays
+    energized down to 3% SOC (below the on-grid floor of 5%).
+    Checks every 7 min.
 
     Uses input_datetime.emhass_last_publish as a heartbeat rather
     than sensor.p_batt_forecast.last_updated, because HA does not
@@ -362,35 +378,40 @@
     - variables:
         goodwe_device_id: "ea2d8925fee08c1321c7f038b61e111e"
         default_charge_current: 25
+        default_discharge_current: 25
         grid_export_limit_w: 10000
-    - action: goodwe.set_parameter
-      data:
-        device_id: "{{ goodwe_device_id }}"
-        parameter: battery_charge_current
-        value: "{{ default_charge_current }}"
     - action: number.set_value
       target:
         entity_id: number.goodwe_grid_export_limit
       data:
         value: "{{ grid_export_limit_w }}"
+      continue_on_error: true
     - action: select.select_option
       target:
         entity_id: select.goodwe_inverter_operation_mode
       data:
         option: general
+      continue_on_error: true
     - delay:
         seconds: 2
     - action: goodwe.set_parameter
       data:
         device_id: "{{ goodwe_device_id }}"
+        parameter: battery_charge_current
+        value: "{{ default_charge_current }}"
+      continue_on_error: true
+    - action: goodwe.set_parameter
+      data:
+        device_id: "{{ goodwe_device_id }}"
         parameter: battery_discharge_current
-        value: 0
+        value: "{{ default_discharge_current }}"
+      continue_on_error: true
     - action: persistent_notification.create
       data:
         title: "EMHASS Failsafe Triggered"
         message: >-
-          p_batt_forecast stale >20 min. General mode +
-          discharge blocked. Battery holds SOC, PV charges.
+          p_batt_forecast stale >20 min. General mode activated.
+          Battery self-consumes, PV charges. EMHASS not controlling.
   mode: single
 
 # ===========================================================================
