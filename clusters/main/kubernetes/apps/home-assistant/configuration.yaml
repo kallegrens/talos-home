@@ -23,11 +23,20 @@ input_boolean:
     name: EMHASS send tail prices (3rd day)
     icon: mdi:calendar-arrow-right
     initial: false
+  ev_charge_requested:
+    name: EV charge requested
+    icon: mdi:ev-station
+    initial: false
 
 input_datetime:
   emhass_last_publish:
     name: EMHASS last publish
     icon: mdi:heart-pulse
+    has_date: true
+    has_time: true
+  ev_ready_by:
+    name: EV ready by
+    icon: mdi:clock-end
     has_date: true
     has_time: true
 
@@ -40,6 +49,15 @@ input_number:
     step: 1
     initial: 0
     mode: box
+  ev_target_soc:
+    name: EV target SOC
+    icon: mdi:battery-charging-80
+    min: 10
+    max: 100
+    step: 5
+    initial: 80
+    unit_of_measurement: "%"
+    mode: slider
 
 # ---------------------------------------------------------------------------
 # EMHASS REST commands
@@ -72,11 +90,35 @@ rest_command:
         {%- set sell_dict.d = dict(sell_dict.d, **{ts_key: price}) -%}
       {%- endfor -%}
       {%- set horizon = [sell_dict.d | length, max_horizon_slots] | min -%}
+      {%- set ev_requested = is_state('input_boolean.ev_charge_requested', 'on') -%}
+      {%- set ev_home = is_state('device_tracker.vw_id_4_position', 'home') -%}
+      {%- set ev_plugged = is_state('binary_sensor.laddare_vid_husknuten_plug', 'on') -%}
+      {%- set ev_soc_raw = states('sensor.wvgzzze2znp061751_battery_level') -%}
+      {%- set ev_soc = ev_soc_raw | float(-1) -%}
+      {%- set ev_target = states('input_number.ev_target_soc') | float(80) -%}
+      {%- set ev_battery_kwh = 77 -%}
+      {%- set ev_charge_kw = 11.04 -%}
+      {%- set ev_active = ev_requested and ev_home and ev_plugged and ev_soc >= 0 and ev_soc < ev_target -%}
+      {%- if ev_active -%}
+        {%- set ev_slots = (((ev_target - ev_soc) / 100 * ev_battery_kwh / ev_charge_kw * 1.05) * 4) | round(0) | int -%}
+        {%- set ev_hours = ev_slots * 0.25 -%}
+        {%- set ev_ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) -%}
+        {%- set ev_deadline_slots = ((ev_ready_ts - as_timestamp(now())) / 900) | int -%}
+        {%- set ev_deadline = [[ev_deadline_slots, 0] | max, horizon] | min -%}
+      {%- else -%}
+        {%- set ev_hours = 0 -%}
+        {%- set ev_deadline = 0 -%}
+      {%- endif -%}
+      {%- set ev_charging = is_state('binary_sensor.laddare_vid_husknuten_charging', 'on') -%}
       {
         "soc_init": {{ curr_soc }},
         "soc_final": {{ soc_final_target }},
         "prediction_horizon": {{ horizon }},
-        "operating_hours_of_each_deferrable_load": [0, 0],
+        "operating_hours_of_each_deferrable_load": [{{ ev_hours }}],
+        "def_current_state": [{{ ev_charging | lower }}],
+        "treat_deferrable_load_as_semi_cont": [true],
+        "set_deferrable_load_single_constant": [false],
+        "end_timesteps_of_each_deferrable_load": [{{ ev_deadline }}],
         "load_cost_forecast": {{ buy_dict.d | tojson }},
         "prod_price_forecast": {{ sell_dict.d | tojson }},
         "battery_minimum_state_of_charge": {{ curr_soc if bms_no_discharge else 0.05 }},
@@ -158,14 +200,14 @@ template:
       - name: "EMHASS Buy Price Forecast"
         unique_id: emhass_buy_price_forecast
         unit_of_measurement: "SEK/kWh"
-        device_class: monetary
+        state_class: measurement
         state: >-
           {%- set slot_minutes = 15 -%}
           {%- set t = now() -%}
           {%- set slot_key = t.replace(minute=(t.minute // slot_minutes) * slot_minutes, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S%z') -%}
           {%- set slot_key = slot_key[:-2] ~ ':' ~ slot_key[-2:] -%}
           {%- set prices = this.attributes.get('prices', {}) -%}
-          {{ prices.get(slot_key, 'unknown') }}
+          {{ prices.get(slot_key) if prices.get(slot_key) is not none else none }}
         attributes:
           prices: >-
             {%- set energiskatt_och_natavgift = 0.607 -%}
@@ -206,14 +248,14 @@ template:
       - name: "EMHASS Sell Price Forecast"
         unique_id: emhass_sell_price_forecast
         unit_of_measurement: "SEK/kWh"
-        device_class: monetary
+        state_class: measurement
         state: >-
           {%- set slot_minutes = 15 -%}
           {%- set t = now() -%}
           {%- set slot_key = t.replace(minute=(t.minute // slot_minutes) * slot_minutes, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S%z') -%}
           {%- set slot_key = slot_key[:-2] ~ ':' ~ slot_key[-2:] -%}
           {%- set prices = this.attributes.get('prices', {}) -%}
-          {{ prices.get(slot_key, 'unknown') }}
+          {{ prices.get(slot_key) if prices.get(slot_key) is not none else none }}
         attributes:
           prices: >-
             {%- set grid_compensation = 0.047 -%}

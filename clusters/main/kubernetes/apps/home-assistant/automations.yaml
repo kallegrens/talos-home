@@ -208,6 +208,11 @@
             - condition: template
               value_template: "{{ decision == 'charge' }}"
           sequence:
+            - action: select.select_option
+              target:
+                entity_id: select.goodwe_ems_mode
+              data:
+                option: auto
             - action: number.set_value
               target:
                 entity_id: number.goodwe_grid_export_limit
@@ -252,6 +257,11 @@
             - condition: template
               value_template: "{{ decision == 'discharge' }}"
           sequence:
+            - action: select.select_option
+              target:
+                entity_id: select.goodwe_ems_mode
+              data:
+                option: auto
             - action: switch.turn_on
               target:
                 entity_id: switch.goodwe_grid_export_limit_switch
@@ -289,19 +299,27 @@
                 value: "{{ default_discharge_current }}"
 
         # --- IDLE (streak reached) ---
-        # eco_charge at current SOC:
-        # - PV powers house first, surplus charges battery
-        # - Grid covers house load when PV insufficient
-        # - Battery does NOT discharge (eco_charge never discharges)
-        # - Backup output stays energized (well-defined eco mode)
-        # - No grid→battery charge (already at/above target SOC)
+        # Uses general mode + EMS charge_pv (limit=0W):
+        # - general mode = normal self-use base
+        # - EMS charge_pv overrides self-use to prevent discharge
+        # - limit=0 means charge = 0 + PV_power: only PV charges
+        #   the battery, no grid→battery charging occurs
+        # - BMS maintains ~47W trickle (unavoidable hardware min)
+        # - When PV is available, surplus charges battery naturally
         #
-        # We use eco_charge instead of general mode because general
-        # mode allows self-consumption discharge, which would drain
-        # the battery when EMHASS intends to preserve it.
-        # We avoid general+discharge_current=0 because that breaks
-        # grid passthrough to backup terminals at low SOC, causing
-        # Check/Wait cycling → fuse trip. See fuse-trip-analysis.ipynb.
+        # Why not eco_charge? eco schedule dominates EMS layer;
+        # eco_charge always charges at eco_mode_power% of rated
+        # power (min 500W at 5%). The EMS layer is ignored.
+        #
+        # Why not battery_standby? Ignored by both eco_charge
+        # and general (self-use) — battery discharges normally.
+        #
+        # Why not discharge_pv? Achieves true 0W idle, but PV
+        # surplus would NOT charge battery — exported instead.
+        #
+        # Empirically tested 2026-02-18: general + charge_pv(0)
+        # yields ~47W trickle with PV surplus charging.
+        # See idle-charging-analysis.ipynb Section 14.
         - conditions:
             - condition: template
               value_template: "{{ decision == 'idle' }}"
@@ -311,21 +329,21 @@
                 entity_id: number.goodwe_grid_export_limit
               data:
                 value: "{{ grid_export_limit_w }}"
-            - action: number.set_value
-              target:
-                entity_id: number.goodwe_eco_mode_power
-              data:
-                value: "{{ min_power_pct }}"
-            - action: number.set_value
-              target:
-                entity_id: number.goodwe_eco_mode_soc
-              data:
-                value: "{{ states('sensor.goodwe_battery_state_of_charge') | int(min_soc_pct) }}"
             - action: select.select_option
               target:
                 entity_id: select.goodwe_inverter_operation_mode
               data:
-                option: eco_charge
+                option: general
+            - action: number.set_value
+              target:
+                entity_id: number.goodwe_ems_power_limit
+              data:
+                value: 0
+            - action: select.select_option
+              target:
+                entity_id: select.goodwe_ems_mode
+              data:
+                option: charge_pv
             - delay:
                 seconds: 2
             - action: goodwe.set_parameter
@@ -392,6 +410,12 @@
       data:
         option: general
       continue_on_error: true
+    - action: select.select_option
+      target:
+        entity_id: select.goodwe_ems_mode
+      data:
+        option: auto
+      continue_on_error: true
     - delay:
         seconds: 2
     - action: goodwe.set_parameter
@@ -412,6 +436,156 @@
         message: >-
           p_batt_forecast stale >20 min. General mode activated.
           Battery self-consumes, PV charges. EMHASS not controlling.
+  mode: single
+
+# ===========================================================================
+# EV Charging (Easee + EMHASS deferrable load)
+#   input_boolean.ev_charge_requested  = user toggle (on-demand)
+#   input_number.ev_target_soc         = desired SOC % (default 80)
+#   input_datetime.ev_ready_by         = deadline (date+time)
+#   sensor.p_deferrable0               = EMHASS EV power schedule
+# ===========================================================================
+
+- id: "1770700000010"
+  alias: EV Charge Control
+  description: >-
+    Translates EMHASS p_deferrable0 into Easee charger commands.
+    When p_deferrable0 > 0: resume charging with 16A dynamic limit
+    and 10-min TTL (refreshed every MPC cycle as a safety net).
+    When p_deferrable0 ≈ 0: pause charging.
+    Only acts when ev_charge_requested is ON and cable is plugged in.
+  triggers:
+    - trigger: state
+      entity_id: sensor.p_deferrable0
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ev_charge_requested
+      state: "on"
+    - condition: state
+      entity_id: binary_sensor.laddare_vid_husknuten_plug
+      state: "on"
+    - condition: template
+      value_template: >-
+        {{ states('sensor.p_deferrable0') not in ['unknown', 'unavailable'] }}
+  actions:
+    - variables:
+        p_def: "{{ states('sensor.p_deferrable0') | float(0) }}"
+        easee_device_id: "634339e1d534267196267f3613120636"
+        charge_current: 16
+        dynamic_limit_ttl: 600
+    - choose:
+        # --- CHARGE: EMHASS wants the EV to charge now ---
+        - conditions:
+            - condition: template
+              value_template: "{{ p_def > 0 }}"
+          sequence:
+            - action: easee.action_command
+              data:
+                device_id: "{{ easee_device_id }}"
+                action_command: resume
+              continue_on_error: true
+            - action: easee.set_charger_dynamic_limit
+              data:
+                device_id: "{{ easee_device_id }}"
+                current: "{{ charge_current }}"
+                time_to_live: "{{ dynamic_limit_ttl }}"
+              continue_on_error: true
+        # --- PAUSE: EMHASS says don't charge this slot ---
+        - conditions:
+            - condition: template
+              value_template: "{{ p_def <= 0 }}"
+          sequence:
+            - action: easee.action_command
+              data:
+                device_id: "{{ easee_device_id }}"
+                action_command: pause
+              continue_on_error: true
+  mode: single
+
+- id: "1770700000011"
+  alias: EV Charge Complete
+  description: >-
+    Auto-clears ev_charge_requested when EV SOC reaches the target.
+    Pauses the charger and sends a notification. Also handles the
+    case where the user unplugs or leaves home.
+  triggers:
+    - trigger: state
+      entity_id: sensor.wvgzzze2znp061751_battery_level
+    - trigger: state
+      entity_id: binary_sensor.laddare_vid_husknuten_plug
+      to: "off"
+    - trigger: state
+      entity_id: device_tracker.vw_id_4_position
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ev_charge_requested
+      state: "on"
+  actions:
+    - variables:
+        ev_soc: "{{ states('sensor.wvgzzze2znp061751_battery_level') | float(0) }}"
+        ev_target: "{{ states('input_number.ev_target_soc') | float(80) }}"
+        unplugged: "{{ is_state('binary_sensor.laddare_vid_husknuten_plug', 'off') }}"
+        left_home: "{{ not is_state('device_tracker.vw_id_4_position', 'home') }}"
+        soc_reached: "{{ ev_soc >= ev_target }}"
+        easee_device_id: "634339e1d534267196267f3613120636"
+    - condition: template
+      value_template: "{{ soc_reached or unplugged or left_home }}"
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.ev_charge_requested
+    - action: easee.action_command
+      data:
+        device_id: "{{ easee_device_id }}"
+        action_command: pause
+      continue_on_error: true
+    - action: persistent_notification.create
+      data:
+        title: >-
+          🔋 EV Charge {% if soc_reached %}Complete{% elif unplugged %}Stopped (unplugged){% else %}Stopped (left home){% endif %}
+        message: >-
+          {% if soc_reached %}ID.4 reached {{ ev_soc }}% SOC (target: {{ ev_target }}%).
+          {% elif unplugged %}Cable disconnected. SOC: {{ ev_soc }}%.
+          {% else %}Vehicle left home. SOC: {{ ev_soc }}%.{% endif %}
+          Charge request cleared at {{ now().strftime('%H:%M') }}.
+        notification_id: ev_charge_complete
+  mode: single
+
+- id: "1770700000012"
+  alias: EV Charge Failsafe
+  description: >-
+    If EMHASS hasn't published for >20 min while the charger is
+    actively charging, pause the charger. Prevents uncontrolled
+    grid draw if EMHASS crashes. Checks every 7 min (same cadence
+    as the battery failsafe).
+  triggers:
+    - minutes: /7
+      trigger: time_pattern
+  conditions:
+    - condition: state
+      entity_id: binary_sensor.laddare_vid_husknuten_charging
+      state: "on"
+    - condition: template
+      value_template: >-
+        {% set stale_threshold_sec = 1200 %}
+        {% set hb_ts = state_attr('input_datetime.emhass_last_publish', 'timestamp') %}
+        {{ hb_ts is none or
+           (as_timestamp(now()) - hb_ts) > stale_threshold_sec }}
+  actions:
+    - variables:
+        easee_device_id: "634339e1d534267196267f3613120636"
+    - action: easee.action_command
+      data:
+        device_id: "{{ easee_device_id }}"
+        action_command: pause
+      continue_on_error: true
+    - action: persistent_notification.create
+      data:
+        title: "⚠️ EV Charge Failsafe"
+        message: >-
+          EMHASS stale >20 min while EV was charging. Charger paused.
+          Re-enable ev_charge_requested after EMHASS recovers.
+          Time: {{ now().strftime('%H:%M') }}
+        notification_id: ev_failsafe
   mode: single
 
 # ===========================================================================
@@ -455,22 +629,25 @@
   alias: Solar Snow - Auto Clear
   description: >-
     Clears snow mode only when there is strong evidence panels are
-    truly clear: actual PV > 50% of forecast AND > 200W absolute,
-    sustained for 30 min, during midday (09–15) when sun angle gives
-    a reliable signal. Prevents false clears from light leaking
-    around snow edges or brief cloud gaps.
+    truly clear: actual PV > 50% of clear-sky estimate AND > 200W
+    absolute, sustained for 30 min, between sunrise and sunset when
+    sun is up and gives a reliable signal. Prevents false clears
+    from light leaking around snow edges or brief cloud gaps.
+
+    Uses sensor.power_production_now from Forecast.Solar as the
+    clear-sky reference instead of sensor.p_pv_forecast, which
+    during snow mode reflects yesterday's (degraded) profile and
+    creates a circular dependency that clears the latch too easily.
   triggers:
     - trigger: template
       value_template: >-
         {% set snow_clear_min_w = 200 %}
         {% set snow_clear_ratio = 0.50 %}
-        {% set midday_start_hour = 9 %}
-        {% set midday_end_hour = 15 %}
-        {% set forecast = states('sensor.p_pv_forecast') | float(0) %}
+        {% set clearsky = states('sensor.power_production_now') | float(0) %}
         {% set actual = states('sensor.goodwe_pv_power') | float(0) %}
-        {% set midday = midday_start_hour <= now().hour < midday_end_hour %}
-        {{ midday and forecast > snow_clear_min_w and actual > snow_clear_min_w
-           and actual > forecast * snow_clear_ratio }}
+        {% set sun_up = is_state('sun.sun', 'above_horizon') %}
+        {{ sun_up and clearsky > snow_clear_min_w and actual > snow_clear_min_w
+           and actual > clearsky * snow_clear_ratio }}
       for: "00:30:00" # snow_clear_sustain_duration
   conditions:
     - condition: state
@@ -486,7 +663,8 @@
         message: >-
           Panels confirmed clear at {{ now().strftime('%H:%M') }}
           ({{ states('sensor.goodwe_pv_power') }}W actual vs
-          {{ states('sensor.p_pv_forecast') }}W forecast, sustained 30 min).
+          {{ states('sensor.power_production_now') }}W Forecast.Solar
+          clear-sky estimate, sustained 30 min).
           Normal PV forecast restored.
         notification_id: solar_snow
   mode: single
