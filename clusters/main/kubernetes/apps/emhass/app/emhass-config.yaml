@@ -79,7 +79,7 @@ data:
           }
         ]
       },
-      "treat_deferrable_load_as_semi_cont": [true],
+      "treat_deferrable_load_as_semi_cont": [false],
       "set_deferrable_load_single_constant": [false],
       "set_deferrable_startup_penalty": [0.0],
       "load_peak_hours_cost": 4.50,

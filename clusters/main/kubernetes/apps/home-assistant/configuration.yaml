@@ -116,7 +116,7 @@ rest_command:
         "prediction_horizon": {{ horizon }},
         "operating_hours_of_each_deferrable_load": [{{ ev_hours }}],
         "def_current_state": [{{ ev_charging | lower }}],
-        "treat_deferrable_load_as_semi_cont": [true],
+        "treat_deferrable_load_as_semi_cont": [false],
         "set_deferrable_load_single_constant": [false],
         "end_timesteps_of_each_deferrable_load": [{{ ev_deadline }}],
         "load_cost_forecast": {{ buy_dict.d | tojson }},

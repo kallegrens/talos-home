@@ -450,8 +450,9 @@
   alias: EV Charge Control
   description: >-
     Translates EMHASS p_deferrable0 into Easee charger commands.
-    When p_deferrable0 > 0: resume charging with 16A dynamic limit
-    and 10-min TTL (refreshed every MPC cycle as a safety net).
+    Converts scheduled watts to amps (6-16A per phase, 3-phase).
+    One phase-amp = 230V → 690W per amp total.
+    When p_deferrable0 > 0: resume and set dynamic current limit.
     When p_deferrable0 ≈ 0: pause charging.
     Only acts when ev_charge_requested is ON and cable is plugged in.
   triggers:
@@ -471,7 +472,8 @@
     - variables:
         p_def: "{{ states('sensor.p_deferrable0') | float(0) }}"
         easee_device_id: "634339e1d534267196267f3613120636"
-        charge_current: 16
+        # Convert watts to per-phase amps: W / (3 phases × 230V), clamp 6-16A
+        charge_current: "{{ [16, [6, (p_def / 690) | round(0) | int] | max] | min }}"
         dynamic_limit_ttl: 600
     - choose:
         # --- CHARGE: EMHASS wants the EV to charge now ---
