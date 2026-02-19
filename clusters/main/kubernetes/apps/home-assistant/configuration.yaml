@@ -113,12 +113,22 @@ rest_command:
       {%- set slot_seconds = slot_minutes * 60 -%}
       {%- set ev_active = ev_requested and ev_home and ev_plugged and ev_soc >= 0 and ev_soc < ev_target -%}
       {%- if ev_active -%}
-        {%- set ev_hours = ((ev_target - ev_soc) / 100 * ev_battery_kwh / ev_charge_kw * ev_charge_overhead) | round(2) -%}
+        {%- set ev_hours_raw = ((ev_target - ev_soc) / 100 * ev_battery_kwh / ev_charge_kw * ev_charge_overhead) | round(2) -%}
         {%- set ev_ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) -%}
         {%- set ev_deadline_slots = ((ev_ready_ts - as_timestamp(now())) / slot_seconds) | int -%}
-        {%- set ev_deadline = [[ev_deadline_slots, 0] | max, horizon] | min -%}
+        {#- Deadline beyond horizon: defer scheduling until horizon catches up -#}
+        {%- if ev_deadline_slots > horizon -%}
+          {%- set ev_hours = 0 -%}
+          {%- set ev_deadline = 0 -%}
+        {%- else -%}
+          {%- set ev_deadline = [[ev_deadline_slots, 1] | max, horizon] | min -%}
+          {#- Cap hours to what physically fits in the deadline slots -#}
+          {%- set max_ev_hours = (ev_deadline * slot_minutes / 60) | round(2) -%}
+          {%- set ev_hours = [ev_hours_raw, max_ev_hours] | min -%}
+        {%- endif -%}
       {%- else -%}
         {%- set ev_hours = 0 -%}
+        {%- set ev_hours_raw = 0 -%}
         {%- set ev_deadline = 0 -%}
       {%- endif -%}
       {%- set ev_charging = is_state('binary_sensor.laddare_vid_husknuten_charging', 'on') -%}

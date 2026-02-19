@@ -446,6 +446,96 @@
 #   sensor.p_deferrable0               = EMHASS EV power schedule
 # ===========================================================================
 
+- id: "1770700000013"
+  alias: EV Charge - Reject Past Deadline
+  description: >-
+    Prevents turning on ev_charge_requested when ev_ready_by is in
+    the past. Turns the toggle back off immediately and notifies.
+    Also catches the case where the deadline passes while the toggle
+    is already on (checked every 4 min alongside the MPC cycle).
+  triggers:
+    - trigger: state
+      entity_id: input_boolean.ev_charge_requested
+      to: "on"
+    - minutes: /4
+      trigger: time_pattern
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ev_charge_requested
+      state: "on"
+    - condition: template
+      value_template: >-
+        {% set ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
+        {{ ready_ts > 0 and ready_ts < as_timestamp(now()) }}
+  actions:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.ev_charge_requested
+    - action: persistent_notification.create
+      data:
+        title: "⏰ EV Charge Rejected — Deadline Passed"
+        message: >-
+          ev_ready_by ({{ states('input_datetime.ev_ready_by') }}) is
+          in the past. Update the deadline to a future time, then
+          re-enable the charge request.
+          Time: {{ now().strftime('%H:%M') }}
+        notification_id: ev_deadline_past
+  mode: single
+
+- id: "1770700000014"
+  alias: EV Charge - Insufficient Time Warning
+  description: >-
+    Fires when the MPC payload caps ev_hours because the deadline
+    is too tight to reach the target SOC. Checked every 4 min.
+    Compares required hours vs available hours.
+  triggers:
+    - minutes: /4
+      trigger: time_pattern
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ev_charge_requested
+      state: "on"
+    - condition: state
+      entity_id: binary_sensor.laddare_vid_husknuten_plug
+      state: "on"
+    - condition: template
+      value_template: >-
+        {% set ev_soc = states('sensor.wvgzzze2znp061751_battery_level') | float(-1) %}
+        {% set ev_target = states('input_number.ev_target_soc') | float(80) %}
+        {% set ev_battery_kwh = 77 %}
+        {% set ev_charge_kw = 11.04 %}
+        {% set ev_charge_overhead = 1.05 %}
+        {% set slot_seconds = 900 %}
+        {% set ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
+        {% set slots_left = ((ready_ts - as_timestamp(now())) / slot_seconds) | int %}
+        {% set hours_needed = ((ev_target - ev_soc) / 100 * ev_battery_kwh / ev_charge_kw * ev_charge_overhead) %}
+        {% set hours_available = slots_left * 15 / 60 %}
+        {{ ev_soc >= 0 and ev_soc < ev_target and slots_left > 0 and hours_needed > hours_available }}
+  actions:
+    - variables:
+        ev_soc: "{{ states('sensor.wvgzzze2znp061751_battery_level') | float(0) }}"
+        ev_target: "{{ states('input_number.ev_target_soc') | float(80) }}"
+        ev_battery_kwh: 77
+        ev_charge_kw: 11.04
+        slot_seconds: 900
+        ready_ts: "{{ state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) }}"
+        slots_left: "{{ ((ready_ts - as_timestamp(now())) / slot_seconds) | int }}"
+        hours_available: "{{ (slots_left * 15 / 60) | round(1) }}"
+        reachable_soc: >-
+          {{ (ev_soc | float + (slots_left | int * 0.25 * ev_charge_kw / ev_battery_kwh * 100))
+             | round(0) | int }}
+    - action: persistent_notification.create
+      data:
+        title: "⚡ EV Charge — Not Enough Time"
+        message: >-
+          Only {{ hours_available }}h left until deadline
+          ({{ states('input_datetime.ev_ready_by') }}).
+          Will charge at max power but can only reach ~{{ reachable_soc }}%
+          instead of {{ ev_target | int }}%.
+          Extend the deadline or lower the target SOC.
+        notification_id: ev_insufficient_time
+  mode: single
+
 - id: "1770700000010"
   alias: EV Charge Control
   description: >-
