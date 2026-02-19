@@ -472,8 +472,11 @@
     - variables:
         p_def: "{{ states('sensor.p_deferrable0') | float(0) }}"
         easee_device_id: "634339e1d534267196267f3613120636"
-        # Convert watts to per-phase amps: W / (3 phases × 230V), clamp 6-16A
-        charge_current: "{{ [16, [6, (p_def / 690) | round(0) | int] | max] | min }}"
+        # 3 phases × 230V = 690W per amp
+        watts_per_amp: 690
+        min_charge_amps: 6
+        max_charge_amps: 16
+        charge_current: "{{ [max_charge_amps, [min_charge_amps, (p_def / watts_per_amp) | round(0) | int] | max] | min }}"
         dynamic_limit_ttl: 600
     - choose:
         # --- CHARGE: EMHASS wants the EV to charge now ---
