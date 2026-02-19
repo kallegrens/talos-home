@@ -169,6 +169,20 @@ rest_command:
 # Template sensors
 # ---------------------------------------------------------------------------
 template:
+  # House consumption excluding deferrable loads (EV charger).
+  # EMHASS needs load_no_var_loads = total consumption minus any loads
+  # it schedules as deferrable, otherwise it double-counts them.
+  - sensor:
+      - name: "House Consumption No EV"
+        unique_id: house_consumption_no_ev
+        device_class: power
+        unit_of_measurement: "W"
+        state_class: measurement
+        state: >-
+          {% set total = states('sensor.goodwe_house_consumption') | float(0) %}
+          {% set ev = states('sensor.laddare_vid_husknuten_power') | float(0) %}
+          {{ [total - ev, 0] | max | round(0) }}
+
   - trigger:
       - trigger: time
         at: "13:05:00"
