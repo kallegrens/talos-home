@@ -3,6 +3,17 @@ default_config:
 # Text to speech
 tts:
   - platform: google_translate
+
+lovelace:
+  mode: storage
+  dashboards:
+    ev-charging:
+      mode: yaml
+      title: EV Charging
+      icon: mdi:ev-station
+      show_in_sidebar: true
+      filename: dashboards/ev-charging.yaml
+
 group: !include groups.yaml
 automation: !include automations.yaml
 script: !include scripts.yaml

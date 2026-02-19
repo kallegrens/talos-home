@@ -1,0 +1,70 @@
+title: EV Charging
+views:
+  - title: EV Charging
+    path: ev
+    icon: mdi:ev-station
+    cards:
+      # ── Controls ──────────────────────────────────────────────
+      - type: entities
+        title: Charge Request
+        show_header_toggle: false
+        entities:
+          - entity: input_boolean.ev_charge_requested
+            name: Request charge
+          - entity: input_number.ev_target_soc
+            name: Target SOC
+          - entity: input_datetime.ev_ready_by
+            name: Ready by
+
+      # ── Live Status ───────────────────────────────────────────
+      - type: entities
+        title: Status
+        show_header_toggle: false
+        entities:
+          - entity: sensor.wvgzzze2znp061751_battery_level
+            name: Car SOC
+            icon: mdi:car-battery
+          - entity: binary_sensor.laddare_vid_husknuten_plug
+            name: Cable plugged
+          - entity: binary_sensor.laddare_vid_husknuten_charging
+            name: Charging
+          - entity: sensor.laddare_vid_husknuten_power
+            name: Charger power
+          - entity: sensor.laddare_vid_husknuten_session_energy
+            name: Session energy
+          - entity: sensor.p_deferrable0
+            name: EMHASS scheduled power
+          - entity: sensor.optim_status
+            name: Optimizer status
+          - entity: device_tracker.vw_id_4_position
+            name: Car location
+
+      # ── Charger Power History ─────────────────────────────────
+      - type: history-graph
+        title: Charger Power (24h)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.laddare_vid_husknuten_power
+            name: Actual
+          - entity: sensor.p_deferrable0
+            name: Scheduled
+
+      # ── Car SOC History ───────────────────────────────────────
+      - type: history-graph
+        title: Car SOC (48h)
+        hours_to_show: 48
+        entities:
+          - entity: sensor.wvgzzze2znp061751_battery_level
+            name: SOC
+
+      # ── Costs ─────────────────────────────────────────────────
+      - type: entities
+        title: Costs
+        show_header_toggle: false
+        entities:
+          - entity: sensor.laddare_vid_husknuten_cost_day
+            name: Today
+          - entity: sensor.laddare_vid_husknuten_cost_month
+            name: This month
+          - entity: sensor.laddare_vid_husknuten_lifetime_energy
+            name: Lifetime energy
