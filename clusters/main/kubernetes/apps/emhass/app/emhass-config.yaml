@@ -27,11 +27,11 @@ data:
       "weight_battery_charge": 0.0,
       "sensor_power_photovoltaics": "sensor.goodwe_pv_power",
       "sensor_power_photovoltaics_forecast": "sensor.p_pv_forecast",
-      "sensor_power_load_no_var_loads": "sensor.goodwe_house_consumption",
+      "sensor_power_load_no_var_loads": "sensor.house_consumption_no_ev",
       "sensor_replace_zero": ["sensor.goodwe_pv_power", "sensor.p_pv_forecast"],
       "sensor_linear_interp": [
         "sensor.goodwe_pv_power",
-        "sensor.goodwe_house_consumption"
+        "sensor.house_consumption_no_ev"
       ],
       "use_websocket": false,
       "use_influxdb": false,
