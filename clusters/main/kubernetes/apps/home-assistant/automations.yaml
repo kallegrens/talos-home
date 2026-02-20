@@ -538,6 +538,28 @@
         notification_id: ev_insufficient_time
   mode: single
 
+- id: "1770700000015"
+  alias: EV Charge - Pause on Cancel
+  description: >-
+    When the user (or another automation) turns off ev_charge_requested,
+    immediately send a pause command to the Easee charger so it does not
+    keep drawing power until the dynamic-limit TTL expires (~600 s).
+  triggers:
+    - entity_id: input_boolean.ev_charge_requested
+      to: "off"
+      trigger: state
+  conditions:
+    - condition: state
+      entity_id: binary_sensor.laddare_vid_husknuten_plug
+      state: "on"
+  actions:
+    - action: easee.action_command
+      data:
+        device_id: 634339e1d534267196267f3613120636
+        action_command: pause
+      continue_on_error: true
+  mode: single
+
 - id: "1770700000010"
   alias: EV Charge Control
   description: >-
