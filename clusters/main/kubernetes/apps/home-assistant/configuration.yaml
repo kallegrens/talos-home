@@ -193,6 +193,17 @@ template:
           {% set ev_kw = states('sensor.laddare_vid_husknuten_power') | float(0) %}
           {{ [total - (ev_kw * 1000), 0] | max | round(0) }}
 
+  - binary_sensor:
+      - name: "EV charge request valid"
+        unique_id: ev_charge_request_valid
+        icon: mdi:ev-station
+        state: >-
+          {% set cur = states('sensor.wvgzzze2znp061751_battery_level') | float(none) %}
+          {% set tgt = states('input_number.ev_target_soc') | float(none) %}
+          {% set ready = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
+          {{ cur is not none and tgt is not none
+             and tgt > cur and ready > as_timestamp(now()) }}
+
   - trigger:
       - trigger: time
         at: "13:05:00"

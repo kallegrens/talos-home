@@ -6,15 +6,39 @@ views:
     cards:
       # ── Controls ──────────────────────────────────────────────
       - type: entities
-        title: Charge Request
+        title: Charge Settings
         show_header_toggle: false
         entities:
-          - entity: input_boolean.ev_charge_requested
-            name: Request charge
           - entity: input_number.ev_target_soc
             name: Target SOC
           - entity: input_datetime.ev_ready_by
             name: Ready by
+
+      # Show request toggle only when inputs are valid
+      - type: conditional
+        conditions:
+          - entity: binary_sensor.ev_charge_request_valid
+            state: "on"
+        card:
+          type: entities
+          title: Start Charging
+          show_header_toggle: false
+          entities:
+            - entity: input_boolean.ev_charge_requested
+              name: Request charge
+
+      # Show warning when inputs are invalid
+      - type: conditional
+        conditions:
+          - entity: binary_sensor.ev_charge_request_valid
+            state: "off"
+        card:
+          type: markdown
+          title: Cannot Request Charge
+          content: |
+            <ha-alert alert-type="warning">
+            Target SOC must be above current SOC and deadline must be in the future.
+            </ha-alert>
 
       # ── Live Status ───────────────────────────────────────────
       - type: entities
