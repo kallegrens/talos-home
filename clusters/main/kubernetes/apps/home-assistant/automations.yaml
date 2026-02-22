@@ -673,7 +673,8 @@
         ev_soc: "{{ states('sensor.wvgzzze2znp061751_battery_level') | float(0) }}"
         ev_target: "{{ states('input_number.ev_target_soc') | float(80) }}"
         unplugged: "{{ is_state('sensor.laddare_vid_husknuten_status', 'disconnected') }}"
-        left_home: "{{ not is_state('device_tracker.vw_id_4_position', 'home') }}"
+        car_state: "{{ states('device_tracker.vw_id_4_position') }}"
+        left_home: "{{ car_state not in ['home', 'unknown', 'unavailable'] }}"
         soc_reached: "{{ ev_soc >= ev_target }}"
         easee_device_id: "634339e1d534267196267f3613120636"
     - condition: template
