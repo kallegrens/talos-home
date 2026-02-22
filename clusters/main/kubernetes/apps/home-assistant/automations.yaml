@@ -667,38 +667,26 @@
 - id: "1770700000011"
   alias: EV Charge Complete
   description: >-
-    Auto-clears ev_charge_requested when EV SOC reaches the target.
-    Pauses the charger and sends a notification. Unplugged/left-home
-    only cancel if the charger was actively charging or awaiting start
-    (not when the charge is just scheduled for the future).
+    Auto-clears ev_charge_requested only when EV SOC reaches the
+    target. Unplugging or leaving home does NOT cancel the request —
+    EMHASS naturally can't charge an unplugged car, and the request
+    stays active so charging resumes when you plug back in.
   triggers:
     - trigger: state
       entity_id: sensor.wvgzzze2znp061751_battery_level
-    - trigger: state
-      entity_id: sensor.laddare_vid_husknuten_status
-      to: "disconnected"
-    - trigger: state
-      entity_id: device_tracker.vw_id_4_position
   conditions:
     - condition: state
       entity_id: input_boolean.ev_charge_requested
       state: "on"
+    - condition: template
+      value_template: >-
+        {{ states('sensor.wvgzzze2znp061751_battery_level') | float(0)
+           >= states('input_number.ev_target_soc') | float(80) }}
   actions:
     - variables:
         ev_soc: "{{ states('sensor.wvgzzze2znp061751_battery_level') | float(0) }}"
         ev_target: "{{ states('input_number.ev_target_soc') | float(80) }}"
-        charger_status: "{{ states('sensor.laddare_vid_husknuten_status') }}"
-        charger_was_active: "{{ charger_status in ['charging', 'awaiting_start', 'completed'] }}"
-        unplugged: "{{ charger_status == 'disconnected' and charger_was_active == false }}"
-        car_state: "{{ states('device_tracker.vw_id_4_position') }}"
-        left_home: "{{ car_state not in ['home', 'unknown', 'unavailable'] and charger_was_active }}"
-        soc_reached: "{{ ev_soc >= ev_target }}"
         easee_device_id: "634339e1d534267196267f3613120636"
-    # SOC reached: always cancel (charge is done)
-    # Unplugged: only if charger was previously active (transition to disconnected)
-    # Left home: only if charger was active (prevents cancelling future schedules)
-    - condition: template
-      value_template: "{{ soc_reached or (trigger.entity_id == 'sensor.laddare_vid_husknuten_status' and charger_status == 'disconnected') or left_home }}"
     - action: input_boolean.turn_off
       target:
         entity_id: input_boolean.ev_charge_requested
@@ -709,12 +697,9 @@
       continue_on_error: true
     - action: persistent_notification.create
       data:
-        title: >-
-          🔋 EV Charge {% if soc_reached %}Complete{% elif unplugged %}Stopped (unplugged){% else %}Stopped (left home){% endif %}
+        title: "🔋 EV Charge Complete"
         message: >-
-          {% if soc_reached %}ID.4 reached {{ ev_soc }}% SOC (target: {{ ev_target }}%).
-          {% elif unplugged %}Cable disconnected. SOC: {{ ev_soc }}%.
-          {% else %}Vehicle left home. SOC: {{ ev_soc }}%.{% endif %}
+          ID.4 reached {{ ev_soc }}% SOC (target: {{ ev_target }}%).
           Charge request cleared at {{ now().strftime('%H:%M') }}.
         notification_id: ev_charge_complete
   mode: single
