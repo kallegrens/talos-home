@@ -23,6 +23,8 @@ views:
             name: Target SOC
             icon: mdi:battery-charging-80
             color: blue
+            tap_action:
+              action: none
             features:
               - type: custom:service-call
                 entries:
@@ -33,7 +35,7 @@ views:
                         {{ states('sensor.wvgzzze2znp061751_battery_level')
                         | float(10) | round(0) }}
                       - 100
-                    step: 5
+                    step: 1
                     unit_of_measurement: "%"
                     tap_action:
                       action: perform-action
@@ -48,6 +50,8 @@ views:
             name: Ready By
             icon: mdi:clock-end
             color: amber
+            tap_action:
+              action: none
             features:
               - type: custom:service-call
                 entries:
