@@ -31,9 +31,7 @@ views:
                   - type: slider
                     entity_id: input_number.ev_target_soc
                     range:
-                      - >-
-                        {{ states('sensor.wvgzzze2znp061751_battery_level')
-                        | float(10) | round(0) }}
+                      - 10
                       - 100
                     step: 1
                     unit_of_measurement: "%"
