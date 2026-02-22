@@ -450,13 +450,13 @@
 # ===========================================================================
 
 - id: "1770700000013"
-  alias: EV Charge - Reject Invalid Request
+  alias: EV Charge - Request Warning
   description: >-
-    Prevents turning on ev_charge_requested when inputs are invalid
-    (deadline in the past, or target SOC <= current SOC).
-    Only fires on toggle-on, NOT periodically — so an active
-    charging session that passes its deadline keeps charging at
-    max power until the target SOC is reached.
+    Warns when ev_charge_requested is turned on but conditions look
+    odd (deadline in the past, or target SOC <= current SOC).
+    Soft warning only — does NOT reject the request, because the
+    user may plan ahead (e.g. SOC 100% now, target 80% next week
+    after driving, or car SOC unavailable when asleep).
   triggers:
     - trigger: state
       entity_id: input_boolean.ev_charge_requested
@@ -466,25 +466,25 @@
       entity_id: binary_sensor.ev_charge_request_valid
       state: "off"
   actions:
-    - action: input_boolean.turn_off
-      target:
-        entity_id: input_boolean.ev_charge_requested
     - action: persistent_notification.create
       data:
-        title: "❌ EV Charge Request Rejected"
+        title: "⚠️ EV Charge Request — Heads Up"
         message: >-
           {% set cur = states('sensor.wvgzzze2znp061751_battery_level') | float(-1) %}
           {% set tgt = states('input_number.ev_target_soc') | float(80) %}
           {% set ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
           {% set now_ts = as_timestamp(now()) %}
           {% if ready_ts <= now_ts %}
-          Deadline ({{ states('input_datetime.ev_ready_by') }}) is in the past.
+          ⏰ Deadline ({{ states('input_datetime.ev_ready_by') }}) is in the past.
           {% endif %}
           {% if cur >= 0 and tgt <= cur %}
-          Target SOC ({{ tgt | int }}%) ≤ current SOC ({{ cur | int }}%).
+          🔋 Target SOC ({{ tgt | int }}%) ≤ current SOC ({{ cur | int }}%).
           {% endif %}
-          Fix the inputs and try again.
-        notification_id: ev_charge_rejected
+          {% if cur < 0 %}
+          🚗 Car SOC unavailable (car may be asleep).
+          {% endif %}
+          Charge request accepted anyway.
+        notification_id: ev_charge_warning
   mode: single
 
 - id: "1770700000014"

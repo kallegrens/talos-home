@@ -198,11 +198,8 @@ template:
         unique_id: ev_charge_request_valid
         icon: mdi:ev-station
         state: >-
-          {% set cur = states('sensor.wvgzzze2znp061751_battery_level') | float(none) %}
-          {% set tgt = states('input_number.ev_target_soc') | float(none) %}
           {% set ready = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
-          {{ cur is not none and tgt is not none
-             and tgt > cur and ready > as_timestamp(now()) }}
+          {{ ready > as_timestamp(now()) }}
 
   - trigger:
       - trigger: time
