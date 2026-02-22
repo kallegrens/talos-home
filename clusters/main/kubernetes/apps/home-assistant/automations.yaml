@@ -998,3 +998,49 @@
       data:
         message: update_widgets
   mode: restart
+
+# ---------------------------------------------------------------------------
+# VW Cabin Pre-conditioning — Departure Timer Sync
+# ---------------------------------------------------------------------------
+- id: "1770700000030"
+  alias: VW Cabin - Sync Departure Timer
+  description: >-
+    Syncs VW AC departure timer slot 3 with input_datetime.ev_ready_by
+    so the cabin is pre-conditioned before the EV charge deadline.
+    Only active when ev_charge_requested is on. Timer slot 2 is used
+    (slot 1 is reserved for manual/VW-app use).
+  triggers:
+    - trigger: state
+      entity_id: input_boolean.ev_charge_requested
+    - trigger: state
+      entity_id: input_datetime.ev_ready_by
+  conditions: []
+  actions:
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.ev_charge_requested
+              state: "on"
+          sequence:
+            - action: volkswagencarnet.update_schedule
+              data:
+                device_id: "863e6f6fdaa5710678e596183d8f23c0"
+                vehicle_series: "ID. Series"
+                timer_id: 2
+                timer_type: "AC Departure Timer"
+                enabled: true
+                frequency: "single"
+                departure_datetime: >-
+                  {{ states('input_datetime.ev_ready_by') }}
+      default:
+        - action: volkswagencarnet.update_schedule
+          data:
+            device_id: "863e6f6fdaa5710678e596183d8f23c0"
+            vehicle_series: "ID. Series"
+            timer_id: 2
+            timer_type: "AC Departure Timer"
+            enabled: false
+            frequency: "single"
+            departure_datetime: >-
+              {{ states('input_datetime.ev_ready_by') }}
+  mode: single

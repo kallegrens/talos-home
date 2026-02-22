@@ -76,6 +76,29 @@ views:
             name: Plan Status
             color: primary
 
+      # ── Cabin ───────────────────────────────────────────────
+      - title: Cabin
+        cards:
+          - type: tile
+            entity: climate.wvgzzze2znp061751_electric_climatisation
+            name: Cabin Climate
+            icon: mdi:car-seat-heater
+            color: deep-orange
+            features:
+              - type: climate-hvac-modes
+                hvac_modes:
+                  - heat_cool
+                  - "off"
+              - type: target-temperature
+
+          - type: tile
+            entity: switch.wvgzzze2znp061751_automatic_window_heating
+            name: Window Defrost
+            icon: mdi:car-defrost-front
+            color: cyan
+            tap_action:
+              action: toggle
+
       # ── Live Status ─────────────────────────────────────────
       - title: Live Status
         cards:
