@@ -4,3 +4,4 @@
 
 clusters/main/kubernetes/apps/home-assistant/automations.yaml
 clusters/main/kubernetes/apps/home-assistant/configuration.yaml
+clusters/main/kubernetes/apps/home-assistant/dashboards/ev-charging.yaml

@@ -66,5 +66,5 @@ when relevant, not in every prompt:
 
 | Skill | Path | When to load |
 |---|---|---|
-| Home Assistant | `clusters/main/kubernetes/apps/home-assistant/SKILL.md` | Editing HA config, automations, template sensors |
-| EMHASS | `clusters/main/kubernetes/apps/emhass/SKILL.md` | Editing EMHASS config, MPC optimization, battery control |
+| Home Assistant | `skills/home-assistant/SKILL.md` | Editing HA config, automations, template sensors |
+| EMHASS | `skills/emhass/SKILL.md` | Editing EMHASS config, MPC optimization, battery control |

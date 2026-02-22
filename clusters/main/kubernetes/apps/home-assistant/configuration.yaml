@@ -103,7 +103,7 @@ rest_command:
       {%- set horizon = [sell_dict.d | length, max_horizon_slots] | min -%}
       {%- set ev_requested = is_state('input_boolean.ev_charge_requested', 'on') -%}
       {%- set ev_home = is_state('device_tracker.vw_id_4_position', 'home') -%}
-      {%- set ev_plugged = is_state('binary_sensor.laddare_vid_husknuten_plug', 'on') -%}
+      {%- set ev_plugged = states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] -%}
       {%- set ev_soc_raw = states('sensor.wvgzzze2znp061751_battery_level') -%}
       {%- set ev_soc = ev_soc_raw | float(-1) -%}
       {%- set ev_target = states('input_number.ev_target_soc') | float(80) -%}
@@ -131,7 +131,7 @@ rest_command:
         {%- set ev_hours_raw = 0 -%}
         {%- set ev_deadline = 0 -%}
       {%- endif -%}
-      {%- set ev_charging = is_state('binary_sensor.laddare_vid_husknuten_charging', 'on') -%}
+      {%- set ev_charging = is_state('sensor.laddare_vid_husknuten_status', 'charging') -%}
       {
         "soc_init": {{ curr_soc }},
         "soc_final": {{ soc_final_target }},
@@ -415,6 +415,103 @@ template:
           {{ 'BMS: Charge disabled' in states('sensor.goodwe_diag_status') }}
         icon: >-
           {{ 'mdi:battery-charging-off' if this.state == 'on' else 'mdi:battery-charging' }}
+
+  # ---------------------------------------------------------------------------
+  # EV plan UI-layer sensors (for iOS widgets & mobile dashboard)
+  # ---------------------------------------------------------------------------
+  - trigger:
+      - trigger: time_pattern
+        minutes: "/1"
+      - trigger: state
+        entity_id:
+          - input_boolean.ev_charge_requested
+          - sensor.laddare_vid_husknuten_status
+          - sensor.laddare_vid_husknuten_power
+          - sensor.wvgzzze2znp061751_battery_level
+          - input_number.ev_target_soc
+          - input_datetime.ev_ready_by
+          - device_tracker.vw_id_4_position
+    sensor:
+      - name: "EV Plan Status"
+        unique_id: ev_plan_status
+        icon: >-
+          {% set s = this.state %}
+          {% if s == 'charging' %}mdi:ev-station
+          {% elif s == 'scheduled' %}mdi:calendar-clock
+          {% elif s == 'complete' %}mdi:check-circle
+          {% elif s == 'paused' %}mdi:pause-circle
+          {% elif s == 'not home' %}mdi:car-off
+          {% elif s == 'not plugged in' %}mdi:power-plug-off
+          {% else %}mdi:ev-plug-type2
+          {% endif %}
+        state: >-
+          {% set requested = is_state('input_boolean.ev_charge_requested', 'on') %}
+          {% set charger = states('sensor.laddare_vid_husknuten_status') %}
+          {% set soc = states('sensor.wvgzzze2znp061751_battery_level') | float(-1) %}
+          {% set target = states('input_number.ev_target_soc') | float(80) %}
+          {% set home = is_state('device_tracker.vw_id_4_position', 'home') %}
+          {% set plugged = charger in ['awaiting_start', 'charging', 'completed'] %}
+          {% if not requested %}
+            idle
+          {% elif not home %}
+            not home
+          {% elif not plugged %}
+            not plugged in
+          {% elif soc >= target %}
+            complete
+          {% elif charger == 'charging' %}
+            charging
+          {% elif charger == 'awaiting_start' %}
+            scheduled
+          {% else %}
+            paused
+          {% endif %}
+
+      - name: "EV Plan Progress"
+        unique_id: ev_plan_progress_pct
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:progress-check
+        state: >-
+          {% set soc = states('sensor.wvgzzze2znp061751_battery_level') | float(0) %}
+          {% set target = states('input_number.ev_target_soc') | float(0) %}
+          {% if target <= 0 %}
+            0
+          {% else %}
+            {{ [[((soc / target) * 100) | round(0), 0] | max, 100] | min }}
+          {% endif %}
+
+      - name: "EV Plan Time Remaining"
+        unique_id: ev_plan_time_remaining
+        icon: mdi:timer-sand
+        state: >-
+          {% set requested = is_state('input_boolean.ev_charge_requested', 'on') %}
+          {% if not requested %}
+            —
+          {% else %}
+            {% set ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
+            {% set secs = (ready_ts - as_timestamp(now())) | int %}
+            {% if secs <= 0 %}
+              overdue
+            {% else %}
+              {% set h = (secs // 3600) %}
+              {% set m = ((secs % 3600) // 60) %}
+              {{ (h ~ 'h ' if h > 0 else '') ~ m ~ 'm' }}
+            {% endif %}
+          {% endif %}
+
+      - name: "EV Plan Energy Needed"
+        unique_id: ev_plan_energy_needed
+        unit_of_measurement: "kWh"
+        device_class: energy
+        icon: mdi:lightning-bolt
+        state: >-
+          {% set soc = states('sensor.wvgzzze2znp061751_battery_level') | float(0) %}
+          {% set target = states('input_number.ev_target_soc') | float(80) %}
+          {% set battery_kwh = 77 %}
+          {% set overhead = 1.05 %}
+          {% set needed = ((target - soc) / 100 * battery_kwh * overhead) %}
+          {{ [needed, 0] | max | round(1) }}
 
 http:
   use_x_forwarded_for: true

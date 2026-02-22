@@ -3,92 +3,132 @@ views:
   - title: EV Charging
     path: ev
     icon: mdi:ev-station
-    cards:
-      # ── Controls ──────────────────────────────────────────────
-      - type: entities
-        title: Charge Settings
-        show_header_toggle: false
-        entities:
-          - entity: input_number.ev_target_soc
+    type: sections
+    max_columns: 2
+    sections:
+      # ── Control ─────────────────────────────────────────────
+      - title: Control
+        cards:
+          - type: tile
+            entity: input_boolean.ev_charge_requested
+            name: Request Charge
+            icon: mdi:ev-station
+            color: green
+            vertical: true
+            tap_action:
+              action: toggle
+
+          - type: tile
+            entity: input_number.ev_target_soc
             name: Target SOC
-          - entity: input_datetime.ev_ready_by
-            name: Ready by
+            icon: mdi:battery-charging-80
+            color: blue
+            features:
+              - type: numeric-input
+                style: slider
 
-      # Show request toggle only when inputs are valid
-      - type: conditional
-        conditions:
-          - entity: binary_sensor.ev_charge_request_valid
-            state: "on"
-        card:
-          type: entities
-          title: Start Charging
-          show_header_toggle: false
-          entities:
-            - entity: input_boolean.ev_charge_requested
-              name: Request charge
+          - type: tile
+            entity: input_datetime.ev_ready_by
+            name: Ready By
+            icon: mdi:clock-end
+            color: amber
+            features:
+              - type: custom:service-call
+                entries:
+                  - type: input
+                    entity_id: input_datetime.ev_ready_by
+                    thumb: datetime-local
+                    range:
+                      - "{{ now().strftime('%Y-%m-%dT%H:%M') }}"
+                      - >-
+                        {{ (now() + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M') }}
+                    step: 900
+                    tap_action:
+                      action: perform-action
+                      perform_action: input_datetime.set_datetime
+                      data:
+                        datetime: "{{ value }}"
+                      target:
+                        entity_id: input_datetime.ev_ready_by
 
-      # Show warning when inputs are invalid
-      - type: conditional
-        conditions:
-          - entity: binary_sensor.ev_charge_request_valid
-            state: "off"
-        card:
-          type: markdown
-          title: Cannot Request Charge
-          content: |
-            <ha-alert alert-type="warning">
-            Target SOC must be above current SOC and deadline must be in the future.
-            </ha-alert>
+          - type: tile
+            entity: sensor.ev_plan_status
+            name: Plan Status
+            color: primary
 
-      # ── Live Status ───────────────────────────────────────────
-      - type: entities
-        title: Status
-        show_header_toggle: false
-        entities:
-          - entity: sensor.wvgzzze2znp061751_battery_level
+      # ── Live Status ─────────────────────────────────────────
+      - title: Live Status
+        cards:
+          - type: tile
+            entity: sensor.wvgzzze2znp061751_battery_level
             name: Car SOC
             icon: mdi:car-battery
-          - entity: binary_sensor.laddare_vid_husknuten_plug
-            name: Cable plugged
-          - entity: binary_sensor.laddare_vid_husknuten_charging
-            name: Charging
-          - entity: sensor.laddare_vid_husknuten_power
-            name: Charger power
-          - entity: sensor.laddare_vid_husknuten_session_energy
-            name: Session energy
-          - entity: sensor.p_deferrable0
-            name: EMHASS scheduled power
-          - entity: sensor.optim_status
-            name: Optimizer status
-          - entity: device_tracker.vw_id_4_position
-            name: Car location
+            color: green
 
-      # ── Charger Power History ─────────────────────────────────
-      - type: history-graph
-        title: Charger Power (24h)
-        hours_to_show: 24
-        entities:
-          - entity: sensor.laddare_vid_husknuten_power
-            name: Actual
-          - entity: sensor.p_deferrable0
-            name: Scheduled
+          - type: tile
+            entity: sensor.ev_plan_progress
+            name: Charge Progress
+            color: blue
 
-      # ── Car SOC History ───────────────────────────────────────
-      - type: history-graph
-        title: Car SOC (48h)
-        hours_to_show: 48
-        entities:
-          - entity: sensor.wvgzzze2znp061751_battery_level
-            name: SOC
+          - type: tile
+            entity: sensor.ev_plan_time_remaining
+            name: Time Remaining
+            color: amber
 
-      # ── Costs ─────────────────────────────────────────────────
-      - type: entities
-        title: Costs
-        show_header_toggle: false
-        entities:
-          - entity: sensor.laddare_vid_husknuten_cost_day
-            name: Today
-          - entity: sensor.laddare_vid_husknuten_cost_month
-            name: This month
-          - entity: sensor.laddare_vid_husknuten_lifetime_energy
-            name: Lifetime energy
+          - type: tile
+            entity: sensor.ev_plan_energy_needed
+            name: Energy Needed
+            color: cyan
+
+          - type: tile
+            entity: sensor.laddare_vid_husknuten_power
+            name: Charger Power
+            icon: mdi:flash
+            color: orange
+
+          - type: tile
+            entity: sensor.laddare_vid_husknuten_status
+            name: Charger Status
+            icon: mdi:ev-plug-type2
+
+          - type: tile
+            entity: sensor.p_deferrable0
+            name: Scheduled Power
+            icon: mdi:chart-timeline-variant
+
+          - type: tile
+            entity: device_tracker.vw_id_4_position
+            name: Car Location
+            icon: mdi:map-marker
+
+      # ── History ─────────────────────────────────────────────
+      - title: History
+        cards:
+          - type: history-graph
+            title: Charger Power (24h)
+            hours_to_show: 24
+            entities:
+              - entity: sensor.laddare_vid_husknuten_power
+                name: Actual
+              - entity: sensor.p_deferrable0
+                name: Scheduled
+
+          - type: history-graph
+            title: Car SOC (48h)
+            hours_to_show: 48
+            entities:
+              - entity: sensor.wvgzzze2znp061751_battery_level
+                name: SOC
+
+      # ── Costs ───────────────────────────────────────────────
+      - title: Costs
+        cards:
+          - type: entities
+            show_header_toggle: false
+            entities:
+              - entity: sensor.laddare_vid_husknuten_cost_day
+                name: Today
+              - entity: sensor.laddare_vid_husknuten_cost_month
+                name: This month
+              - entity: sensor.laddare_vid_husknuten_lifetime_energy
+                name: Lifetime energy

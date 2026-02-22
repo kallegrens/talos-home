@@ -68,6 +68,9 @@
   triggers:
     - minutes: /4
       trigger: time_pattern
+    - trigger: state
+      entity_id: input_boolean.ev_charge_requested
+      to: "on"
   conditions:
     - condition: template
       value_template: >-
@@ -497,9 +500,9 @@
     - condition: state
       entity_id: input_boolean.ev_charge_requested
       state: "on"
-    - condition: state
-      entity_id: binary_sensor.laddare_vid_husknuten_plug
-      state: "on"
+    - condition: template
+      value_template: >-
+        {{ states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] }}
     - condition: template
       value_template: >-
         {% set ev_soc = states('sensor.wvgzzze2znp061751_battery_level') | float(-1) %}
@@ -549,9 +552,9 @@
       to: "off"
       trigger: state
   conditions:
-    - condition: state
-      entity_id: binary_sensor.laddare_vid_husknuten_plug
-      state: "on"
+    - condition: template
+      value_template: >-
+        {{ states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] }}
   actions:
     - action: easee.action_command
       data:
@@ -576,9 +579,9 @@
     - condition: state
       entity_id: input_boolean.ev_charge_requested
       state: "on"
-    - condition: state
-      entity_id: binary_sensor.laddare_vid_husknuten_plug
-      state: "on"
+    - condition: template
+      value_template: >-
+        {{ states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] }}
     - condition: template
       value_template: >-
         {{ states('sensor.p_deferrable0') not in ['unknown', 'unavailable'] }}
@@ -593,10 +596,36 @@
         charge_current: "{{ [max_charge_amps, [min_charge_amps, (p_def / watts_per_amp) | round(0) | int] | max] | min }}"
         dynamic_limit_ttl: 600
     - choose:
-        # --- CHARGE: EMHASS wants the EV to charge now ---
+        # --- CHARGE (already active): just update the dynamic limit ---
+        # When the charger is already charging, only refresh the current
+        # limit. Sending resume would reset the limit to 32A and cause
+        # a power spike every MPC cycle.
         - conditions:
             - condition: template
               value_template: "{{ p_def > 0 }}"
+            - condition: state
+              entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
+              state: "off"
+            - condition: state
+              entity_id: sensor.laddare_vid_husknuten_status
+              state: "charging"
+          sequence:
+            - action: easee.set_charger_dynamic_limit
+              data:
+                device_id: "{{ easee_device_id }}"
+                current: "{{ charge_current }}"
+                time_to_live: "{{ dynamic_limit_ttl }}"
+              continue_on_error: true
+        # --- CHARGE (start): resume then set limit ---
+        # Charger is paused/awaiting. Resume resets limit to 32A,
+        # so we immediately follow with set_charger_dynamic_limit.
+        # This only happens once per charging session, not every 4 min.
+        - conditions:
+            - condition: template
+              value_template: "{{ p_def > 0 }}"
+            - condition: state
+              entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
+              state: "off"
           sequence:
             - action: easee.action_command
               data:
@@ -631,8 +660,8 @@
     - trigger: state
       entity_id: sensor.wvgzzze2znp061751_battery_level
     - trigger: state
-      entity_id: binary_sensor.laddare_vid_husknuten_plug
-      to: "off"
+      entity_id: sensor.laddare_vid_husknuten_status
+      to: "disconnected"
     - trigger: state
       entity_id: device_tracker.vw_id_4_position
   conditions:
@@ -643,7 +672,7 @@
     - variables:
         ev_soc: "{{ states('sensor.wvgzzze2znp061751_battery_level') | float(0) }}"
         ev_target: "{{ states('input_number.ev_target_soc') | float(80) }}"
-        unplugged: "{{ is_state('binary_sensor.laddare_vid_husknuten_plug', 'off') }}"
+        unplugged: "{{ is_state('sensor.laddare_vid_husknuten_status', 'disconnected') }}"
         left_home: "{{ not is_state('device_tracker.vw_id_4_position', 'home') }}"
         soc_reached: "{{ ev_soc >= ev_target }}"
         easee_device_id: "634339e1d534267196267f3613120636"
@@ -681,8 +710,8 @@
       trigger: time_pattern
   conditions:
     - condition: state
-      entity_id: binary_sensor.laddare_vid_husknuten_charging
-      state: "on"
+      entity_id: sensor.laddare_vid_husknuten_status
+      state: "charging"
     - condition: template
       value_template: >-
         {% set stale_threshold_sec = 1200 %}
@@ -705,6 +734,160 @@
           Re-enable ev_charge_requested after EMHASS recovers.
           Time: {{ now().strftime('%H:%M') }}
         notification_id: ev_failsafe
+  mode: single
+
+# ===========================================================================
+# VW Car Charge Target Sync
+#   Makes input_number.ev_target_soc the single source of truth.
+#   Pushes the value to the VW car's battery_target_charge_level
+#   (ceil to next multiple of 10, clamped 50-100 so the car's BMS never
+#   stops early — EMHASS controls the precise cutoff). Disables
+#   battery_care_mode when target > 80% (care mode caps at 80%).
+#   Re-enables it when ≤ 80%.
+# ===========================================================================
+
+- id: "1770700000018"
+  alias: EV Charge - Sync Car Target SOC
+  description: >-
+    When the user changes ev_target_soc in the dashboard, push the
+    value to the VW ID.4's battery_target_charge_level. The car
+    entity only accepts multiples of 10 (50-100), so we ceil to the
+    next multiple — this ensures the car's BMS never stops charging
+    before EMHASS reaches the real target. EMHASS publishes p_def=0
+    at the precise SOC.
+    If the target exceeds 80%, battery_care_mode must be turned off
+    because it hard-caps charging at 80%. When target is ≤ 80%,
+    battery_care_mode is turned back on to preserve battery health.
+    Note: The volkswagencarnet integration raises non-HomeAssistantError
+    exceptions on API failure (429 rate-limit), which bypasses HA's
+    continue_on_error. A shell_command wrapper catches these so the
+    automation always completes.
+  triggers:
+    - trigger: state
+      entity_id: input_number.ev_target_soc
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state.state not in ['unknown', 'unavailable']
+           and trigger.from_state.state != trigger.to_state.state }}
+  actions:
+    - variables:
+        ha_target: "{{ states('input_number.ev_target_soc') | float(80) }}"
+        # Ceil to next multiple of 10, clamp to VW range 50-100.
+        # Ceil ensures the car's BMS never stops before EMHASS reaches
+        # the real target — EMHASS publishes p_def=0 at the exact SOC.
+        car_target: "{{ [100, [50, (((ha_target / 10) | round(0, 'ceil')) | int * 10)] | max] | min }}"
+        need_care_off: "{{ car_target | int > 80 }}"
+    # Notification FIRST — the VW cloud API may fail (429 rate-limit)
+    # and the volkswagencarnet integration raises errors that bypass
+    # HA's continue_on_error. By notifying first, the user always
+    # sees what was intended regardless of VW cloud flakiness.
+    - action: persistent_notification.create
+      data:
+        title: "🔋 Syncing car charge target"
+        message: >-
+          HA target: {{ ha_target | int }}% → Car target: {{ car_target }}%.
+          Battery care mode: {{ 'OFF' if need_care_off else 'ON' }}.
+          Sending to VW cloud…
+        notification_id: ev_car_target_sync
+    # --- Battery care mode ---
+    # Disable when targeting > 80% (care mode hard-caps at 80%).
+    # Re-enable when ≤ 80% for battery health.
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ need_care_off and is_state('switch.wvgzzze2znp061751_battery_care_mode', 'on') }}"
+          sequence:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.wvgzzze2znp061751_battery_care_mode
+        - conditions:
+            - condition: template
+              value_template: "{{ not need_care_off and is_state('switch.wvgzzze2znp061751_battery_care_mode', 'off') }}"
+          sequence:
+            - action: switch.turn_on
+              target:
+                entity_id: switch.wvgzzze2znp061751_battery_care_mode
+    - delay:
+        seconds: 5
+    # --- Set the car's charge target ---
+    - action: number.set_value
+      target:
+        entity_id: number.wvgzzze2znp061751_battery_target_charge_level
+      data:
+        value: "{{ car_target }}"
+  mode: restart
+
+# ===========================================================================
+# Heat Pump Priority (compressor preempts EV charging)
+# ===========================================================================
+
+- id: "1770700000016"
+  alias: EV Charge - Heat Pump Preempt
+  description: >-
+    Heat pump compressor always gets priority over EV charging.
+    When the compressor starts, immediately pause the Easee charger.
+    The EV Charge Control automation has a compressor-off guard on
+    its resume branch, so EMHASS's regular 4-min MPC cycle cannot
+    resume the charger while the compressor is running.
+    When the compressor stops, the release automation triggers an
+    MPC re-evaluation to reschedule EV charging promptly.
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
+      to: "on"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ev_charge_requested
+      state: "on"
+    - condition: state
+      entity_id: sensor.laddare_vid_husknuten_status
+      state: "charging"
+  actions:
+    - action: easee.action_command
+      data:
+        device_id: 634339e1d534267196267f3613120636
+        action_command: pause
+      continue_on_error: true
+    - action: persistent_notification.create
+      data:
+        title: "🔥 EV Charge Paused — Heat Pump"
+        message: >-
+          Heat pump compressor started. EV charging paused to give
+          priority. Will resume when compressor stops and EMHASS
+          reschedules. Time: {{ now().strftime('%H:%M') }}
+        notification_id: ev_heatpump_preempt
+  mode: single
+
+- id: "1770700000017"
+  alias: EV Charge - Heat Pump Release MPC
+  description: >-
+    When the heat pump compressor stops, trigger an immediate MPC
+    re-evaluation so EMHASS can reschedule EV charging without
+    waiting up to 4 min for the next regular cycle. The updated
+    p_deferrable0 will trigger EV Charge Control to resume if the
+    optimizer still wants the EV to charge.
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
+      to: "off"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ev_charge_requested
+      state: "on"
+    - condition: template
+      value_template: >-
+        {{ states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] }}
+  actions:
+    - action: rest_command.emhass_mpc_optim
+    - delay:
+        seconds: 2
+    - action: rest_command.emhass_publish_data
+    - action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.emhass_last_publish
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
   mode: single
 
 # ===========================================================================
@@ -787,3 +970,31 @@
           Normal PV forecast restored.
         notification_id: solar_snow
   mode: single
+
+# ---------------------------------------------------------------------------
+# iOS Widget Refresh
+# ---------------------------------------------------------------------------
+- id: "1770700000020"
+  alias: iOS Widget - Refresh EV Plan
+  description: >-
+    Sends a silent push to refresh iOS widgets when EV plan state changes.
+    Budget: ~40-70 updates/day allowed by iOS, so only trigger on
+    meaningful transitions, not every sensor tick.
+  triggers:
+    - trigger: state
+      entity_id:
+        - input_boolean.ev_charge_requested
+        - sensor.laddare_vid_husknuten_status
+        - sensor.ev_plan_status
+  conditions:
+    # Don't fire on unavailable/unknown transitions
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state.state not in ['unavailable', 'unknown']
+           and trigger.from_state.state != trigger.to_state.state }}
+  actions:
+    - delay: "00:00:05"
+    - action: notify.mobile_app_karls_iphone_13
+      data:
+        message: update_widgets
+  mode: restart
