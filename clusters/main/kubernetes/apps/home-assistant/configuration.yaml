@@ -446,7 +446,8 @@ template:
           {% set charger = states('sensor.laddare_vid_husknuten_status') %}
           {% set soc = states('sensor.wvgzzze2znp061751_battery_level') | float(-1) %}
           {% set target = states('input_number.ev_target_soc') | float(80) %}
-          {% set home = is_state('device_tracker.vw_id_4_position', 'home') %}
+          {% set pos = states('device_tracker.vw_id_4_position') %}
+          {% set home = pos in ['home', 'unknown', 'unavailable'] %}
           {% set plugged = charger in ['awaiting_start', 'charging', 'completed'] %}
           {% if not requested %}
             idle
