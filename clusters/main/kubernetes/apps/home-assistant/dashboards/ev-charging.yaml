@@ -57,10 +57,10 @@ views:
                     entity_id: input_datetime.ev_ready_by
                     thumb: datetime-local
                     range:
-                      - "{{ now().strftime('%Y-%m-%dT%H:%M') }}"
+                      - "{{ now().replace(minute=0, second=0).strftime('%Y-%m-%dT%H:%M') }}"
                       - >-
-                        {{ (now() + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M') }}
-                    step: 900
+                        {{ (now() + timedelta(days=7)).replace(minute=0, second=0).strftime('%Y-%m-%dT%H:%M') }}
+                    step: 300
                     tap_action:
                       action: perform-action
                       perform_action: input_datetime.set_datetime
