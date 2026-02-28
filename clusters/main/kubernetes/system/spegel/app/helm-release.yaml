@@ -6,6 +6,11 @@ metadata:
   name: spegel
   namespace: spegel
 spec:
+  # Suspended: spegel is a P2P image mirror between nodes.
+  # Useless on a single-node cluster — no peers to bootstrap from,
+  # causing infinite crash loop (routing table empty). Re-enable when
+  # adding more nodes.
+  suspend: true
   interval: 30m
   chart:
     spec:
