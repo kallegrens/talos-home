@@ -37,7 +37,10 @@ spec:
           app:
             image:
               repository: ghcr.io/davidusb-geek/emhass
-              tag: v0.17.0
+              # Pinned to master post-v0.17.0: includes PR #735 fix for
+              # continual_publish "Timeout context manager" error.
+              # Revert to a release tag once v0.17.1+ is published.
+              tag: sha-304c70f
             env:
               TZ: Europe/Stockholm
             probes:
