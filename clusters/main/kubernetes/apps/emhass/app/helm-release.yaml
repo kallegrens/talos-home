@@ -36,11 +36,12 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/davidusb-geek/emhass
-              # Pinned to master post-v0.17.0: includes PR #735 fix for
-              # continual_publish "Timeout context manager" error.
-              # Revert to a release tag once v0.17.1+ is published.
-              tag: sha-304c70f
+              repository: ghcr.io/kallegrens/emhass
+              # Custom build from fork fix/solcast-header-and-resampling branch.
+              # Fixes: Accept header bug + sub-30min resampling for Solcast.
+              # PR: https://github.com/davidusb-geek/emhass/pull/739
+              # Revert to ghcr.io/davidusb-geek/emhass once PR is merged.
+              tag: fix-solcast
             env:
               TZ: Europe/Stockholm
             probes:
