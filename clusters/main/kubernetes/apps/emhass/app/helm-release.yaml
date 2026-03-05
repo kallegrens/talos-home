@@ -31,11 +31,6 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    # Temporary: pull from private GHCR fork image.
-    # Remove once upstream PR #739 is merged and image reverted.
-    defaultPodOptions:
-      imagePullSecrets:
-        - name: ghcr-auth
     controllers:
       emhass:
         containers:
