@@ -37,11 +37,11 @@ spec:
           app:
             image:
               repository: ghcr.io/kallegrens/emhass
-              # Custom build from fork fix/solcast-header-and-resampling branch.
-              # Fixes: Accept header bug + sub-30min resampling for Solcast.
-              # PR: https://github.com/davidusb-geek/emhass/pull/739
-              # Revert to ghcr.io/davidusb-geek/emhass once PR is merged.
-              tag: fix-solcast
+              # Custom build from fork with two fixes:
+              # 1. Solcast Accept header + sub-30min resampling (PR #739)
+              # 2. Gracefully skip empty days in REST API retrieval (PR #740)
+              # Revert to ghcr.io/davidusb-geek/emhass once PRs are merged.
+              tag: fix-solcast-and-empty-days
             env:
               TZ: Europe/Stockholm
             probes:
