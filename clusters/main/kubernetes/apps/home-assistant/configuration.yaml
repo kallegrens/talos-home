@@ -78,7 +78,7 @@ rest_command:
     url: "http://emhass.emhass.svc.cluster.local:5000/action/naive-mpc-optim"
     method: POST
     content_type: "application/json"
-    timeout: 30
+    timeout: 300
     payload: >-
       {%- set curr_soc = states('sensor.goodwe_battery_state_of_charge') | float(0) / 100 -%}
       {%- set soc_final_target = 0.05 -%}
@@ -173,7 +173,7 @@ rest_command:
     method: POST
     content_type: "application/json"
     payload: "{}"
-    timeout: 30
+    timeout: 300
 
 # ---------------------------------------------------------------------------
 # Template sensors
