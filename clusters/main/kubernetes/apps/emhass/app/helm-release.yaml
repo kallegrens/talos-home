@@ -42,6 +42,7 @@ spec:
               # 2. Gracefully skip empty days in REST API retrieval (PR #740)
               # Revert to ghcr.io/davidusb-geek/emhass once PRs are merged.
               tag: fix-solcast-and-empty-days
+              pullPolicy: Always  # Mutable tag — always re-pull
             env:
               TZ: Europe/Stockholm
             probes:
