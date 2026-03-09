@@ -133,6 +133,13 @@
     Grid export limit is 10,000W in all modes. Battery→grid spill
     is prevented by EMHASS (set_nodischarge_to_grid) + eco_mode_power
     sizing. A 0W hardware limit caused PV curtailment on sunny days.
+
+    Availability guard: skips when GoodWe sensors are unavailable.
+    The goodwe library shares a _consecutive_failures_count between
+    reads and writes. Failed writes poison the coordinator's failure
+    threshold (3), causing sensors to go unavailable even faster.
+    Skipping writes during outages lets the coordinator recover
+    uncontested — see the Failsafe description for the full cascade.
   triggers:
     - trigger: state
       entity_id: sensor.p_batt_forecast
@@ -143,6 +150,15 @@
       value_template: >-
         {{ states('sensor.p_batt_forecast') not in ['unknown', 'unavailable']
            and states('sensor.soc_batt_forecast') not in ['unknown', 'unavailable'] }}
+    # Guard: don't attempt writes when the inverter is unreachable.
+    # Write failures share the coordinator's _consecutive_failures_count
+    # counter in the goodwe library. Hammering writes during an outage
+    # pushes the counter past the threshold of 3, forcing the coordinator
+    # to immediately mark sensors unavailable on its next poll — which
+    # cascades into MPC Loop skipping and Failsafe write-storms.
+    - condition: template
+      value_template: >-
+        {{ states('sensor.goodwe_battery_state_of_charge') not in ['unknown', 'unavailable'] }}
   actions:
     - variables:
         # --- Hardware constants ---
@@ -385,6 +401,19 @@
     bump last_updated when EMHASS posts identical state+attributes
     (common during flat forecast periods). The heartbeat is set by
     the MPC Loop automation after every successful publish cycle.
+
+    Availability guard: skips when GoodWe sensors are unavailable.
+    The goodwe library has a single _consecutive_failures_count on
+    the Inverter object, shared by reads (coordinator) AND writes
+    (automations). The coordinator tolerates 2 consecutive failures
+    before marking sensors unavailable — but write failures also
+    increment the counter. With continue_on_error, this automation
+    attempts 5+ writes even when the inverter is down: each takes
+    10 retries × 1s timeout = 50s of socket hammering every 7 min,
+    pushing the counter far past 3 and preventing recovery. The
+    guard breaks this feedback loop: no writes → coordinator polls
+    uncontested → counter resets on first success → sensors recover
+    → automations resume.
   triggers:
     - minutes: /7
       trigger: time_pattern
@@ -395,6 +424,17 @@
         {% set hb_ts = state_attr('input_datetime.emhass_last_publish', 'timestamp') %}
         {{ hb_ts is none or
            (as_timestamp(now()) - hb_ts) > stale_threshold_sec }}
+    # Guard: don't write to the inverter when it's unreachable.
+    # The Failsafe uses continue_on_error which means it attempts ALL
+    # 5+ writes even when the inverter is down. Each failed write takes
+    # 10 retries × 1s = 10s, totalling ~50s of socket hammering every
+    # 7 min — preventing the coordinator from recovering. Better to
+    # skip entirely and let the coordinator recover uncontested.
+    # The inverter keeps running in its last-set mode until it's
+    # reachable again.
+    - condition: template
+      value_template: >-
+        {{ states('sensor.goodwe_battery_state_of_charge') not in ['unknown', 'unavailable'] }}
   actions:
     - variables:
         goodwe_device_id: "ea2d8925fee08c1321c7f038b61e111e"
