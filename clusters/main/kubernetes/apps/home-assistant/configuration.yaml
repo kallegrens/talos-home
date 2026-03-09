@@ -81,7 +81,6 @@ rest_command:
     timeout: 300
     payload: >-
       {%- set curr_soc = states('sensor.goodwe_battery_state_of_charge') | float(0) / 100 -%}
-      {%- set soc_final_target = 0.05 -%}
       {%- set snow = is_state('input_boolean.solar_panels_snow_covered', 'on') -%}
       {%- set bms_no_discharge = is_state('binary_sensor.bms_discharge_disabled', 'on') -%}
       {%- set bms_no_charge = is_state('binary_sensor.bms_charge_disabled', 'on') -%}
@@ -134,7 +133,8 @@ rest_command:
       {%- set ev_charging = is_state('sensor.laddare_vid_husknuten_status', 'charging') -%}
       {
         "soc_init": {{ curr_soc }},
-        "soc_final": {{ soc_final_target }},
+        "soc_final": {{ curr_soc }},
+        "terminal_cost_method": "shadow_price",
         "prediction_horizon": {{ horizon }},
         "operating_hours_of_each_deferrable_load": [{{ ev_hours }}],
         "def_current_state": [{{ ev_charging | lower }}],
@@ -180,6 +180,16 @@ rest_command:
 # ---------------------------------------------------------------------------
 template:
   # House consumption excluding deferrable loads (EV charger).
+  # Easee reports power in kW; convert to W so it graphs alongside GoodWe
+  - sensor:
+      - name: "EV Charger Power"
+        unique_id: ev_charger_power_w
+        device_class: power
+        unit_of_measurement: "W"
+        state_class: measurement
+        state: >-
+          {{ (states('sensor.laddare_vid_husknuten_power') | float(0) * 1000) | round(0) }}
+
   # EMHASS needs load_no_var_loads = total consumption minus any loads
   # it schedules as deferrable, otherwise it double-counts them.
   - sensor:
@@ -190,8 +200,56 @@ template:
         state_class: measurement
         state: >-
           {% set total = states('sensor.goodwe_house_consumption') | float(0) %}
-          {% set ev_kw = states('sensor.laddare_vid_husknuten_power') | float(0) %}
-          {{ [total - (ev_kw * 1000), 0] | max | round(0) }}
+          {% set ev_w = states('sensor.ev_charger_power') | float(0) %}
+          {{ [total - ev_w, 0] | max | round(0) }}
+
+      # HP Power Estimation — temp-dependent model from GoodWe correlation
+      # Heating: linear fit R²=0.91, slope=-32.7 W/°C (compressor works harder when cold)
+      # DHW: constant (temp effect not significant, p=0.30)
+      # Calibrated from 131K samples, Jan-Mar 2026
+      # UPSTREAM BUG: cooling_operational_status = actually DHW (issue #52)
+      # https://github.com/klejejs/python-thermia-online-api/issues/52
+      - name: "HP Heating Power"
+        unique_id: hp_heating_power
+        device_class: power
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:radiator
+        state: >-
+          {% set comp = is_state('binary_sensor.lavendelgangen_3_compr_operational_status', 'on') %}
+          {% set heating = is_state('binary_sensor.lavendelgangen_3_heating_operational_status', 'on') %}
+          {% set dhw = is_state('binary_sensor.lavendelgangen_3_cooling_operational_status', 'on') %}
+          {% set brine = is_state('binary_sensor.lavendelgangen_3_brinepump_operational_status', 'on') %}
+          {% set rad = is_state('binary_sensor.lavendelgangen_3_radiatorpump_operational_status', 'on') %}
+          {% set t_out = states('sensor.lavendelgangen_3_outdoor_temperature') | float(0) %}
+          {% set aux3 = is_state('binary_sensor.lavendelgangen_3_3kw_power_status', 'on') %}
+          {% set aux6 = is_state('binary_sensor.lavendelgangen_3_6kw_power_status', 'on') %}
+          {% set aux9 = is_state('binary_sensor.lavendelgangen_3_9kw_power_status', 'on') %}
+          {% set aux12 = is_state('binary_sensor.lavendelgangen_3_12kw_power_status', 'on') %}
+          {% set aux15 = is_state('binary_sensor.lavendelgangen_3_15kw_power_status', 'on') %}
+          {% set aux_w = 15000 if aux15 else (12000 if aux12 else (9000 if aux9 else (6000 if aux6 else (3000 if aux3 else 0)))) %}
+          {% set comp_brine_w = [(-32.7 * t_out + 2585) | round(0) | int, 500] | max if (comp and heating and not dhw) else 0 %}
+          {% set rad_w = 244 if rad else 0 %}
+          {{ (comp_brine_w + rad_w + (aux_w if (heating and not dhw) else 0)) | int }}
+
+      - name: "HP Hot Water Power"
+        unique_id: hp_hot_water_power
+        device_class: power
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:water-boiler
+        state: >-
+          {% set comp = is_state('binary_sensor.lavendelgangen_3_compr_operational_status', 'on') %}
+          {% set dhw = is_state('binary_sensor.lavendelgangen_3_cooling_operational_status', 'on') %}
+          {% set brine = is_state('binary_sensor.lavendelgangen_3_brinepump_operational_status', 'on') %}
+          {% set aux3 = is_state('binary_sensor.lavendelgangen_3_3kw_power_status', 'on') %}
+          {% set aux6 = is_state('binary_sensor.lavendelgangen_3_6kw_power_status', 'on') %}
+          {% set aux9 = is_state('binary_sensor.lavendelgangen_3_9kw_power_status', 'on') %}
+          {% set aux12 = is_state('binary_sensor.lavendelgangen_3_12kw_power_status', 'on') %}
+          {% set aux15 = is_state('binary_sensor.lavendelgangen_3_15kw_power_status', 'on') %}
+          {% set aux_w = 15000 if aux15 else (12000 if aux12 else (9000 if aux9 else (6000 if aux6 else (3000 if aux3 else 0)))) %}
+          {% set dhw_w = 3404 if (comp and dhw) else 0 %}
+          {{ (dhw_w + (aux_w if dhw else 0)) | int }}
 
   - binary_sensor:
       - name: "EV charge request valid"
@@ -364,6 +422,34 @@ template:
         state: >-
           {{ -(states('sensor.goodwe_meter_active_power_total') | float(0)) }}
 
+  # Solar surplus available for EV charging.
+  # Uses PV production directly (not the grid meter) so battery discharge
+  # is never mistaken for solar surplus. Subtracts house load (excl. EV)
+  # and EMHASS-commanded battery charging (eco_charge, ems_mode=auto).
+  #
+  # In idle mode (general + charge_pv), the battery absorbs PV surplus
+  # opportunistically — but yields automatically when the EV starts,
+  # because charge_pv(0) only charges from true PV surplus after the
+  # grid meter. So we DON'T subtract idle-mode battery charge here;
+  # the inverter self-balances.
+  #
+  # goodwe_battery_power sign: positive = discharging, negative = charging.
+  - sensor:
+      - name: "Solar Surplus for EV"
+        unique_id: solar_surplus_for_ev
+        device_class: power
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:solar-power-variant
+        state: >-
+          {% set pv = states('sensor.goodwe_pv_power') | float(0) %}
+          {% set house = states('sensor.house_consumption_no_ev') | float(0) %}
+          {% set batt = states('sensor.goodwe_battery_power') | float(0) %}
+          {% set ems = states('select.goodwe_ems_mode') %}
+          {% set emhass_charging = ems == 'auto' and batt < 0 %}
+          {% set batt_charge = (-batt) if emhass_charging else 0 %}
+          {{ [pv - house - batt_charge, 0] | max | round(0) }}
+
   # Snow detector: fires when forecast > min_forecast_w but actual < snow_threshold (5%).
   # An automation latches input_boolean.solar_panels_snow_covered ON
   # when this turns on. A separate automation clears the boolean when
@@ -510,6 +596,26 @@ template:
           {% set overhead = 1.05 %}
           {% set needed = ((target - soc) / 100 * battery_kwh * overhead) %}
           {{ [needed, 0] | max | round(1) }}
+
+# ---------------------------------------------------------------------------
+# Riemann-sum energy sensors (power → kWh for Energy Dashboard)
+# ---------------------------------------------------------------------------
+sensor:
+  - platform: integration
+    source: sensor.hp_heating_power
+    name: HP Heating Energy
+    unique_id: hp_heating_energy
+    unit_prefix: k
+    unit_time: h
+    method: trapezoidal
+
+  - platform: integration
+    source: sensor.hp_hot_water_power
+    name: HP Hot Water Energy
+    unique_id: hp_hot_water_energy
+    unit_prefix: k
+    unit_time: h
+    method: trapezoidal
 
 http:
   use_x_forwarded_for: true

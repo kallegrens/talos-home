@@ -130,9 +130,9 @@
     gives the inverter headroom to keep acting through the cycle
     without hitting the SOC limit before the next re-solve.
 
-    Grid export limit is set to 0W on discharge to prevent battery
-    energy spilling to grid at a loss. On charge/idle the limit is
-    lifted so solar export is not blocked.
+    Grid export limit is 10,000W in all modes. Battery→grid spill
+    is prevented by EMHASS (set_nodischarge_to_grid) + eco_mode_power
+    sizing. A 0W hardware limit caused PV curtailment on sunny days.
   triggers:
     - trigger: state
       entity_id: sensor.p_batt_forecast
@@ -150,7 +150,7 @@
         batt_max_w: 5050
         batt_capacity_wh: 14200
         grid_export_limit_w: 10000
-        grid_export_discharge_w: 0
+        grid_export_discharge_w: 10000
         min_power_pct: 5
         min_soc_pct: 5
         max_soc_pct: 100
@@ -575,6 +575,50 @@
         device_id: 634339e1d534267196267f3613120636
         action_command: pause
       continue_on_error: true
+    - action: easee.set_charger_phase_mode
+      data:
+        device_id: 634339e1d534267196267f3613120636
+        phase_mode: auto_phase
+      continue_on_error: true
+  mode: single
+
+- id: "1770700000019"
+  alias: EV Charge - Pause on Plug-In
+  description: >-
+    Safety net: pause the Easee charger on initial cable plug-in only.
+    The Easee default behaviour is to start charging immediately, but we
+    want explicit control — either EMHASS schedules it (via EV Charge
+    Control) or the solar surplus automation ramps it up. Without this,
+    the car draws full power from the grid the moment the cable connects.
+    Only fires on transition FROM disconnected so it does not interfere
+    with legitimate resume commands from solar surplus or EMHASS.
+  triggers:
+    - trigger: state
+      entity_id: sensor.laddare_vid_husknuten_status
+      from: "disconnected"
+      to: "awaiting_start"
+    - trigger: state
+      entity_id: sensor.laddare_vid_husknuten_status
+      from: "disconnected"
+      to: "charging"
+  conditions: []
+  actions:
+    - delay:
+        seconds: 3
+    - action: easee.action_command
+      data:
+        device_id: 634339e1d534267196267f3613120636
+        action_command: pause
+      continue_on_error: true
+    - action: persistent_notification.create
+      data:
+        title: "🔌 EV Plugged In — Charger Paused"
+        message: >-
+          Car connected at {{ now().strftime('%H:%M') }}. Charger paused
+          to prevent uncontrolled grid charging. Solar surplus charging
+          will start automatically when PV excess is available.
+          To charge by a deadline, enable a charge plan in the dashboard.
+        notification_id: ev_plug_in_paused
   mode: single
 
 - id: "1770700000010"
@@ -695,6 +739,11 @@
         device_id: "{{ easee_device_id }}"
         action_command: pause
       continue_on_error: true
+    - action: easee.set_charger_phase_mode
+      data:
+        device_id: "{{ easee_device_id }}"
+        phase_mode: auto_phase
+      continue_on_error: true
     - action: persistent_notification.create
       data:
         title: "🔋 EV Charge Complete"
@@ -740,6 +789,148 @@
           Re-enable ev_charge_requested after EMHASS recovers.
           Time: {{ now().strftime('%H:%M') }}
         notification_id: ev_failsafe
+  mode: single
+
+# ===========================================================================
+# EV Solar Surplus Charging
+#   Automatically diverts PV excess to the EV whenever the car is
+#   plugged in. Runs alongside EMHASS: when p_deferrable0 > 0 EMHASS
+#   owns the charger; between scheduled slots the solar loop fills
+#   gaps with free solar energy. No user toggle needed.
+# ===========================================================================
+
+- id: "1770700000021"
+  alias: EV Solar Surplus Charging
+  description: >-
+    Every 60 s, checks solar surplus (PV minus house minus battery
+    charging) and adjusts the Easee charger accordingly. Uses 1-phase
+    mode when surplus is 1.4–4.1 kW (min 6 A × 230 V = 1380 W) and
+    3-phase mode above 4.1 kW (6 A × 690 W). Pauses when surplus
+    drops below threshold. Uses sensor.solar_surplus_for_ev which is
+    feedback-loop-safe (based on PV, not the grid meter, so battery
+    discharge is never mistaken for solar surplus).
+    Hysteresis: starts after 2 min of sufficient surplus, stops after
+    3 min of insufficient surplus (via last_action tracking).
+  triggers:
+    - trigger: time_pattern
+      minutes: "/1"
+  conditions:
+    # Car must be plugged in
+    - condition: state
+      entity_id: binary_sensor.wvgzzze2znp061751_charging_cable_connected
+      state: "on"
+    # Heat pump compressor must be off (compressor gets priority)
+    - condition: state
+      entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
+      state: "off"
+    # EMHASS must not be actively commanding charge right now
+    - condition: template
+      value_template: >-
+        {{ states('sensor.p_deferrable0') | float(0) <= 0 }}
+  actions:
+    - variables:
+        surplus: "{{ states('sensor.solar_surplus_for_ev') | float(0) }}"
+        ev_charging: "{{ is_state('sensor.laddare_vid_husknuten_status', 'charging') }}"
+        easee_device_id: "634339e1d534267196267f3613120636"
+        # Phase thresholds
+        min_1p_w: 1380 # 6A × 230V × 1 phase
+        min_3p_w: 4140 # 6A × 230V × 3 phases
+        # Hysteresis: require surplus above start threshold, allow
+        # continuing at a slightly lower level to avoid rapid cycling
+        start_threshold_1p: 1500 # start 1-phase at 1.5 kW (slight margin)
+        stop_threshold: 1200 # stop below 1.2 kW
+    - choose:
+        # --- 3-PHASE: surplus >= 4.14 kW ---
+        - conditions:
+            - condition: template
+              value_template: "{{ surplus >= min_3p_w }}"
+          sequence:
+            # Switch to 3-phase if not already
+            - action: easee.set_charger_phase_mode
+              data:
+                device_id: "{{ easee_device_id }}"
+                phase_mode: 3_phase
+              continue_on_error: true
+            - delay:
+                seconds: 3
+            # Re-check compressor after delay — if it turned on during
+            # the 3s wait, abort. set_charger_dynamic_limit implicitly
+            # resumes a paused Easee, so we must not send it.
+            - condition: state
+              entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
+              state: "off"
+            # Resume FIRST if not already charging. The resume command
+            # resets the dynamic limit to 32A, so we must send it
+            # before set_charger_dynamic_limit, not after.
+            - if:
+                - condition: template
+                  value_template: "{{ not ev_charging }}"
+              then:
+                - action: easee.action_command
+                  data:
+                    device_id: "{{ easee_device_id }}"
+                    action_command: resume
+                  continue_on_error: true
+                - delay:
+                    seconds: 2
+            - action: easee.set_charger_dynamic_limit
+              data:
+                device_id: "{{ easee_device_id }}"
+                current: "{{ [16, [6, (surplus / 690) | round(0) | int] | max] | min }}"
+                time_to_live: 60
+              continue_on_error: true
+        # --- 1-PHASE: surplus 1.5–4.14 kW ---
+        - conditions:
+            - condition: template
+              value_template: >-
+                {{ surplus >= start_threshold_1p or
+                   (ev_charging and surplus >= stop_threshold) }}
+          sequence:
+            # Switch to 1-phase if not already
+            - action: easee.set_charger_phase_mode
+              data:
+                device_id: "{{ easee_device_id }}"
+                phase_mode: 1_phase
+              continue_on_error: true
+            - delay:
+                seconds: 3
+            # Re-check compressor after delay — if it turned on during
+            # the 3s wait, abort. set_charger_dynamic_limit implicitly
+            # resumes a paused Easee, so we must not send it.
+            - condition: state
+              entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
+              state: "off"
+            # Resume FIRST if not already charging. The resume command
+            # resets the dynamic limit to 32A, so we must send it
+            # before set_charger_dynamic_limit, not after.
+            - if:
+                - condition: template
+                  value_template: "{{ not ev_charging }}"
+              then:
+                - action: easee.action_command
+                  data:
+                    device_id: "{{ easee_device_id }}"
+                    action_command: resume
+                  continue_on_error: true
+                - delay:
+                    seconds: 2
+            - action: easee.set_charger_dynamic_limit
+              data:
+                device_id: "{{ easee_device_id }}"
+                current: "{{ [16, [6, (surplus / 230) | round(0) | int] | max] | min }}"
+                time_to_live: 60
+              continue_on_error: true
+        # --- PAUSE: surplus below threshold ---
+      default:
+        - if:
+            - condition: template
+              value_template: "{{ ev_charging }}"
+          then:
+            - action: easee.action_command
+              data:
+                device_id: "{{ easee_device_id }}"
+                action_command: pause
+              continue_on_error: true
   mode: single
 
 # ===========================================================================
@@ -797,23 +988,17 @@
           Sending to VW cloud…
         notification_id: ev_car_target_sync
     # --- Battery care mode ---
-    # Disable when targeting > 80% (care mode hard-caps at 80%).
-    # Re-enable when ≤ 80% for battery health.
-    - choose:
-        - conditions:
-            - condition: template
-              value_template: "{{ need_care_off and is_state('switch.wvgzzze2znp061751_battery_care_mode', 'on') }}"
-          sequence:
-            - action: switch.turn_off
-              target:
-                entity_id: switch.wvgzzze2znp061751_battery_care_mode
-        - conditions:
-            - condition: template
-              value_template: "{{ not need_care_off and is_state('switch.wvgzzze2znp061751_battery_care_mode', 'off') }}"
-          sequence:
-            - action: switch.turn_on
-              target:
-                entity_id: switch.wvgzzze2znp061751_battery_care_mode
+    # Always kept OFF so the car accepts charge to 100%. The turn-off
+    # branch is a safety net in case it's ever manually enabled.
+    # (The old turn-on branch was removed — we never want care mode on
+    # because solar surplus charging should fill to 100%.)
+    - if:
+        - condition: template
+          value_template: "{{ is_state('switch.wvgzzze2znp061751_battery_care_mode', 'on') }}"
+      then:
+        - action: switch.turn_off
+          target:
+            entity_id: switch.wvgzzze2znp061751_battery_care_mode
     - delay:
         seconds: 5
     # --- Set the car's charge target ---
@@ -832,20 +1017,16 @@
   alias: EV Charge - Heat Pump Preempt
   description: >-
     Heat pump compressor always gets priority over EV charging.
-    When the compressor starts, immediately pause the Easee charger.
-    The EV Charge Control automation has a compressor-off guard on
-    its resume branch, so EMHASS's regular 4-min MPC cycle cannot
-    resume the charger while the compressor is running.
-    When the compressor stops, the release automation triggers an
-    MPC re-evaluation to reschedule EV charging promptly.
+    When the compressor starts, immediately pause the Easee charger
+    regardless of charging mode (EMHASS-scheduled or solar surplus).
+    After pausing, waits 6s and re-checks — an in-flight Solar
+    Surplus set_charger_dynamic_limit can implicitly resume a paused
+    Easee, so we verify and re-pause if needed.
   triggers:
     - trigger: state
       entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
       to: "on"
   conditions:
-    - condition: state
-      entity_id: input_boolean.ev_charge_requested
-      state: "on"
     - condition: state
       entity_id: sensor.laddare_vid_husknuten_status
       state: "charging"
@@ -863,6 +1044,29 @@
           priority. Will resume when compressor stops and EMHASS
           reschedules. Time: {{ now().strftime('%H:%M') }}
         notification_id: ev_heatpump_preempt
+    # Safety net: an in-flight Solar Surplus automation may send
+    # set_charger_dynamic_limit after our pause, which implicitly
+    # resumes the Easee. Wait for any in-flight actions to land,
+    # then re-pause if the charger escaped.
+    - delay:
+        seconds: 6
+    - if:
+        - condition: state
+          entity_id: sensor.laddare_vid_husknuten_status
+          state: "charging"
+      then:
+        - action: easee.action_command
+          data:
+            device_id: 634339e1d534267196267f3613120636
+            action_command: pause
+          continue_on_error: true
+        - action: persistent_notification.create
+          data:
+            title: "🔥 EV Re-paused — Race Condition Caught"
+            message: >-
+              Charger resumed despite pause (in-flight dynamic limit).
+              Re-paused. Time: {{ now().strftime('%H:%M:%S') }}
+            notification_id: ev_heatpump_repause
   mode: single
 
 - id: "1770700000017"
@@ -897,85 +1101,85 @@
   mode: single
 
 # ===========================================================================
-# Snow Detection  (latching design)
+# Snow Detection  (latching design) — DISABLED until next winter
 #   binary_sensor.solar_snow_detected  = real-time detector (daytime only)
 #   input_boolean.solar_panels_snow_covered = latching flag checked by MPC
 # ===========================================================================
 
-- id: "1770700000008"
-  alias: Solar Snow - Latch ON
-  description: >-
-    When the detector fires (forecast > 100W, actual < 5%), latch the
-    input_boolean ON. Requires the boolean to have been OFF for at
-    least 1 hour, preventing re-latch after manual override or
-    auto-clear.
-  triggers:
-    - trigger: state
-      entity_id: binary_sensor.solar_snow_detected
-      to: "on"
-  conditions:
-    - condition: state
-      entity_id: input_boolean.solar_panels_snow_covered
-      state: "off"
-      for: "01:00:00" # relatch_cooldown: min off-time before re-latching
-  actions:
-    - action: input_boolean.turn_on
-      target:
-        entity_id: input_boolean.solar_panels_snow_covered
-    - action: persistent_notification.create
-      data:
-        title: "☃️ Snow Mode Active"
-        message: >-
-          Auto-detected snow on panels at {{ now().strftime('%H:%M') }}.
-          Forecast={{ states('sensor.p_pv_forecast') }}W,
-          actual={{ states('sensor.goodwe_pv_power') }}W.
-          MPC will zero PV forecast until panels are clear.
-        notification_id: solar_snow
-  mode: single
+# - id: "1770700000008"
+#   alias: Solar Snow - Latch ON
+#   description: >-
+#     When the detector fires (forecast > 100W, actual < 5%), latch the
+#     input_boolean ON. Requires the boolean to have been OFF for at
+#     least 1 hour, preventing re-latch after manual override or
+#     auto-clear.
+#   triggers:
+#     - trigger: state
+#       entity_id: binary_sensor.solar_snow_detected
+#       to: "on"
+#   conditions:
+#     - condition: state
+#       entity_id: input_boolean.solar_panels_snow_covered
+#       state: "off"
+#       for: "01:00:00" # relatch_cooldown: min off-time before re-latching
+#   actions:
+#     - action: input_boolean.turn_on
+#       target:
+#         entity_id: input_boolean.solar_panels_snow_covered
+#     - action: persistent_notification.create
+#       data:
+#         title: "☃️ Snow Mode Active"
+#         message: >-
+#           Auto-detected snow on panels at {{ now().strftime('%H:%M') }}.
+#           Forecast={{ states('sensor.p_pv_forecast') }}W,
+#           actual={{ states('sensor.goodwe_pv_power') }}W.
+#           MPC will zero PV forecast until panels are clear.
+#         notification_id: solar_snow
+#   mode: single
 
-- id: "1770700000009"
-  alias: Solar Snow - Auto Clear
-  description: >-
-    Clears snow mode only when there is strong evidence panels are
-    truly clear: actual PV > 50% of clear-sky estimate AND > 200W
-    absolute, sustained for 30 min, between sunrise and sunset when
-    sun is up and gives a reliable signal. Prevents false clears
-    from light leaking around snow edges or brief cloud gaps.
-
-    Uses sensor.power_production_now from Forecast.Solar as the
-    clear-sky reference instead of sensor.p_pv_forecast, which
-    during snow mode reflects yesterday's (degraded) profile and
-    creates a circular dependency that clears the latch too easily.
-  triggers:
-    - trigger: template
-      value_template: >-
-        {% set snow_clear_min_w = 200 %}
-        {% set snow_clear_ratio = 0.50 %}
-        {% set clearsky = states('sensor.power_production_now') | float(0) %}
-        {% set actual = states('sensor.goodwe_pv_power') | float(0) %}
-        {% set sun_up = is_state('sun.sun', 'above_horizon') %}
-        {{ sun_up and clearsky > snow_clear_min_w and actual > snow_clear_min_w
-           and actual > clearsky * snow_clear_ratio }}
-      for: "00:30:00" # snow_clear_sustain_duration
-  conditions:
-    - condition: state
-      entity_id: input_boolean.solar_panels_snow_covered
-      state: "on"
-  actions:
-    - action: input_boolean.turn_off
-      target:
-        entity_id: input_boolean.solar_panels_snow_covered
-    - action: persistent_notification.create
-      data:
-        title: "☀️ Snow Mode Cleared"
-        message: >-
-          Panels confirmed clear at {{ now().strftime('%H:%M') }}
-          ({{ states('sensor.goodwe_pv_power') }}W actual vs
-          {{ states('sensor.power_production_now') }}W Forecast.Solar
-          clear-sky estimate, sustained 30 min).
-          Normal PV forecast restored.
-        notification_id: solar_snow
-  mode: single
+# - id: "1770700000009"
+#   alias: Solar Snow - Auto Clear
+#   description: >-
+#     Clears snow mode only when there is strong evidence panels are
+#     truly clear: actual PV > 50% of clear-sky estimate AND > 200W
+#     absolute, sustained for 30 min, between sunrise and sunset when
+#     sun is up and gives a reliable signal. Prevents false clears
+#     from light leaking around snow edges or brief cloud gaps.
+#
+#     Uses sensor.power_production_now from Forecast.Solar as the
+#     clear-sky reference instead of sensor.p_pv_forecast, which
+#     during snow mode reflects yesterday's (degraded) profile and
+#     creates a circular dependency that clears the latch too easily.
+#   triggers:
+#     - trigger: template
+#       value_template: >-
+#         {% set snow_clear_min_w = 200 %}
+#         {% set snow_clear_ratio = 0.50 %}
+#         {% set clearsky = states('sensor.power_production_now') | float(0) %}
+#         {% set actual = states('sensor.goodwe_pv_power') | float(0) %}
+#         {% set sun_up = is_state('sun.sun', 'above_horizon') %}
+#         {{ sun_up and clearsky > snow_clear_min_w and actual > snow_clear_min_w
+#            and actual > clearsky * snow_clear_ratio }}
+#       for: "00:30:00" # snow_clear_sustain_duration
+#   conditions:
+#     - condition: state
+#       entity_id: input_boolean.solar_panels_snow_covered
+#       state: "on"
+#   actions:
+#     - action: input_boolean.turn_off
+#       target:
+#         entity_id: input_boolean.solar_panels_snow_covered
+#     - action: persistent_notification.create
+#       data:
+#         title: "☀️ Snow Mode Cleared"
+#         message: >-
+#           Panels confirmed clear at {{ now().strftime('%H:%M') }}
+#           ({{ states('sensor.goodwe_pv_power') }}W actual vs
+#           {{ states('sensor.power_production_now') }}W Forecast.Solar
+#           clear-sky estimate, sustained 30 min).
+#           Normal PV forecast restored.
+#         notification_id: solar_snow
+#   mode: single
 
 # ---------------------------------------------------------------------------
 # iOS Widget Refresh
