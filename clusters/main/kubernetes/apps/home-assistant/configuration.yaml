@@ -33,7 +33,7 @@ input_boolean:
   emhass_send_tail_prices:
     name: EMHASS send tail prices (3rd day)
     icon: mdi:calendar-arrow-right
-    initial: false
+    initial: true
   ev_charge_requested:
     name: EV charge requested
     icon: mdi:ev-station
@@ -134,7 +134,6 @@ rest_command:
       {
         "soc_init": {{ curr_soc }},
         "soc_final": {{ curr_soc }},
-        "terminal_cost_method": "shadow_price",
         "prediction_horizon": {{ horizon }},
         "operating_hours_of_each_deferrable_load": [{{ ev_hours }}],
         "def_current_state": [{{ ev_charging | lower }}],
