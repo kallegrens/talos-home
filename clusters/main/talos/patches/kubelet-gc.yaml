@@ -1,5 +1,5 @@
 machine:
   kubelet:
     extraArgs:
-      "image-gc-high-threshold": "75"
-      "image-gc-low-threshold": "65"
+      "image-gc-high-threshold": "20"
+      "image-gc-low-threshold": "10"
