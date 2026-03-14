@@ -91,6 +91,7 @@ spec:
       main:
         cluster:
           singleNode: true
+          instances: 1
 
     resources:
       limits:

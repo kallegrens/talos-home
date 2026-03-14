@@ -67,6 +67,7 @@ spec:
       main:
         cluster:
           singleNode: true
+          instances: 1
     addons:
       codeserver:
         enabled: true
