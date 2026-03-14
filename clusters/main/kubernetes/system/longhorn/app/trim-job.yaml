@@ -1,0 +1,12 @@
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: trim-caches
+  namespace: longhorn-system
+spec:
+  cron: "0 2 * * *"
+  task: "filesystem-trim"
+  groups:
+    - trim-caches
+  retain: 1
+  concurrency: 1

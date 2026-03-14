@@ -6,3 +6,4 @@ resources:
   - volumeSnapshotClass.yaml
   - ingress.yaml
   - storageclass-wffc.yaml
+  - trim-job.yaml

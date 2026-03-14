@@ -33,6 +33,11 @@ spec:
   values:
     TZ: Europe/Stockholm
 
+    volumeClaimTemplates:
+      - name: arm
+        annotations:
+          longhorn.io/recurring-job-selector: '[{"name":"trim-caches","isGroup":true}]'
+
     ingress:
       main:
         enabled: true

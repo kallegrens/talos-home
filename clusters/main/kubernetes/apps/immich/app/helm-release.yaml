@@ -87,12 +87,16 @@ spec:
     persistence:
       mlcache:
         type: pvc
+        annotations:
+          longhorn.io/recurring-job-selector: '[{"name":"trim-caches","isGroup":true}]'
       library:
         type: nfs
         server: ${NFS_IP}
         path: /mnt/lundgrens_data/immich/library
       uploads:
         type: pvc
+        annotations:
+          longhorn.io/recurring-job-selector: '[{"name":"trim-caches","isGroup":true}]'
       backups:
         type: nfs
         server: ${NFS_IP}
