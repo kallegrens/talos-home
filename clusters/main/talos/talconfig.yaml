@@ -37,6 +37,7 @@ nodes:
     ### Note the placement of the gpu patch reference ###
     patches:
       - "@./patches/nvidia.yaml"
+      - "@./patches/kubelet-gc.yaml"
     nameservers:
       - 1.1.1.1
       - 9.9.9.9
