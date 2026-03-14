@@ -91,14 +91,18 @@
 - id: "1770700000007"
   alias: EMHASS PV Forecast Cache
   description: >-
-    Caches PV weather forecast 3x daily so MPC runs reuse cached data
-    instead of hitting Open-Meteo every 5 min.
+    Caches PV weather forecast 4x daily so MPC runs reuse cached data
+    instead of hitting Solcast every 4 min. 1 roof array = 4 API
+    calls/day out of the 10 free-tier limit. First call at 05:00
+    ensures the cache is warm before the overnight cache expires.
   triggers:
-    - at: "06:00:00"
+    - at: "05:00:00"
       trigger: time
     - at: "12:00:00"
       trigger: time
     - at: "18:00:00"
+      trigger: time
+    - at: "21:00:00"
       trigger: time
   actions:
     - action: rest_command.emhass_weather_cache

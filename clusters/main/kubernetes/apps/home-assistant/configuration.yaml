@@ -132,6 +132,7 @@ rest_command:
       {%- endif -%}
       {%- set ev_charging = is_state('sensor.laddare_vid_husknuten_status', 'charging') -%}
       {
+        "weather_forecast_cache_only": true,
         "soc_init": {{ curr_soc }},
         "soc_final": {{ curr_soc }},
         "prediction_horizon": {{ horizon }},
