@@ -33,6 +33,16 @@ spec:
 
   values:
     TZ: Europe/Stockholm
+
+    credentials:
+      b2:
+        type: s3
+        url: "https://${BACKBLAZE_ENDPOINT}"
+        bucket: "${BACKBLAZE_BUCKET_NAME}"
+        accessKey: "${BACKBLAZE_KEY_ID}"
+        secretKey: "${BACKBLAZE_APPLICATION_KEY}"
+        encrKey: "${RESTIC_ENCRYPTION_KEY}"
+
     image:
       repository: influxdb
       tag: "2.8.0"
@@ -104,9 +114,25 @@ spec:
       data:
         enabled: true
         type: pvc
+        volsync:
+          - name: data
+            type: restic
+            credentials: b2
+            dest:
+              enabled: false
+            src:
+              enabled: true
         mountPath: /var/lib/influxdb2
 
       config:
         enabled: true
         type: pvc
+        volsync:
+          - name: config
+            type: restic
+            credentials: b2
+            dest:
+              enabled: false
+            src:
+              enabled: true
         mountPath: /etc/influxdb2

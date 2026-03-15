@@ -32,6 +32,15 @@ spec:
   values:
     TZ: Europe/Stockholm
 
+    credentials:
+      b2:
+        type: s3
+        url: "https://${BACKBLAZE_ENDPOINT}"
+        bucket: "${BACKBLAZE_BUCKET_NAME}"
+        accessKey: "${BACKBLAZE_KEY_ID}"
+        secretKey: "${BACKBLAZE_APPLICATION_KEY}"
+        encrKey: "${RESTIC_ENCRYPTION_KEY}"
+
     ingress:
       main:
         enabled: true
@@ -46,6 +55,16 @@ spec:
           - host: makemkv.${DOMAIN_0}
 
     persistence:
+      config:
+        type: pvc
+        volsync:
+          - name: config
+            type: restic
+            credentials: b2
+            dest:
+              enabled: false
+            src:
+              enabled: true
       output:
         type: nfs
         server: ${NFS_IP}
