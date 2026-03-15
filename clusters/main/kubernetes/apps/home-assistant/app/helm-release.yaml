@@ -77,9 +77,9 @@ spec:
         type: s3
         url: "${BACKBLAZE_ENDPOINT}"
         bucket: "talos-truecharts-migration"
-        accessKey: "${BACKBLAZE_ACCESS_KEY}"
-        secretKey: "${BACKBLAZE_SECRET_KEY}"
-        encrKey: "${BACKBLAZE_RESTIC_PASSWORD}"
+        accessKey: "${BACKBLAZE_KEY_ID}"
+        secretKey: "${BACKBLAZE_APPLICATION_KEY}"
+        encrKey: "${RESTIC_ENCRYPTION_KEY}"
 
     persistence:
       config:
