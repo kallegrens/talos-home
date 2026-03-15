@@ -36,6 +36,15 @@ spec:
     global:
       stopAll: false
 
+    credentials:
+      b2:
+        type: s3
+        url: "https://${BACKBLAZE_ENDPOINT}"
+        bucket: "${BACKBLAZE_BUCKET_NAME}"
+        accessKey: "${BACKBLAZE_KEY_ID}"
+        secretKey: "${BACKBLAZE_APPLICATION_KEY}"
+        encrKey: "${RESTIC_ENCRYPTION_KEY}"
+
     paperless:
 
     workload:
@@ -82,16 +91,35 @@ spec:
     persistence:
       data:
         type: pvc
+        volsync:
+          - name: data
+            type: restic
+            credentials: b2
+            dest:
+              enabled: false
+            src:
+              enabled: true
       consume:
         enabled: false
       media:
         type: pvc
+        volsync:
+          - name: media
+            type: restic
+            credentials: b2
+            dest:
+              enabled: false
+            src:
+              enabled: true
 
     cnpg:
       main:
         cluster:
           singleNode: true
           instances: 1
+        backups:
+          enabled: true
+          credentials: b2
 
     resources:
       limits:
