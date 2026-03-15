@@ -63,36 +63,35 @@ spec:
         - 172.16.0.0/16
         - 172.17.0.0/16
 
-    cnpg:
-      main:
-        backups:
-          enabled: true
-          credentials: s3-credentials
-        cluster:
-          singleNode: true
-          instances: 1
-
     credentials:
-      s3-credentials:
+      b2:
         type: s3
         url: "https://${BACKBLAZE_ENDPOINT}"
-        bucket: "talos-truecharts-migration"
+        bucket: "${BACKBLAZE_BUCKET_NAME}"
         accessKey: "${BACKBLAZE_KEY_ID}"
         secretKey: "${BACKBLAZE_APPLICATION_KEY}"
         encrKey: "${RESTIC_ENCRYPTION_KEY}"
 
     persistence:
       config:
+        type: pvc
         volsync:
-          - name: b2
+          - name: config
             type: restic
-            credentials: s3-credentials
+            credentials: b2
             dest:
-              enabled: true
+              enabled: false
             src:
               enabled: true
-              trigger:
-                schedule: "0 0 * * *"
+
+    cnpg:
+      main:
+        cluster:
+          singleNode: true
+          instances: 1
+        backups:
+          enabled: true
+          credentials: b2
     addons:
       codeserver:
         enabled: true
