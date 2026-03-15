@@ -75,7 +75,7 @@ spec:
     credentials:
       s3-credentials:
         type: s3
-        url: "${BACKBLAZE_ENDPOINT}"
+        url: "https://${BACKBLAZE_ENDPOINT}"
         bucket: "talos-truecharts-migration"
         accessKey: "${BACKBLAZE_KEY_ID}"
         secretKey: "${BACKBLAZE_APPLICATION_KEY}"
