@@ -32,6 +32,11 @@ spec:
     keepHistory: false
 
   values:
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
     controllers:
       onecli:
         containers:
