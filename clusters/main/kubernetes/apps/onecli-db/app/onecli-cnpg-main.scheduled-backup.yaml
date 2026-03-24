@@ -1,0 +1,13 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: onecli-cnpg-main-daily
+  namespace: onecli
+spec:
+  schedule: "0 0 3 * * *"
+  immediate: true
+  backupOwnerReference: cluster
+  method: barmanObjectStore
+  cluster:
+    name: onecli-cnpg-main

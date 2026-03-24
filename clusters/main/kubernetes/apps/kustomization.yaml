@@ -23,3 +23,5 @@ resources:
   - paperless-ngx/ks.yaml
   - home-assistant/ks.yaml
   - emhass/ks.yaml
+  - onecli-db/ks.yaml
+  - onecli/ks.yaml

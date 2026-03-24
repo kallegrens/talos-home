@@ -1,0 +1,148 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: onecli
+  namespace: onecli
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.2
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      interval: 15m
+  timeout: 20m
+  maxHistory: 3
+  driftDetection:
+    mode: warn
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      onecli:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/onecli/onecli
+              tag: 1.5.5@sha256:a9cf33b0c188928352533e52d8afbe568103df76ae19b139daaf243f129f1e55
+              pullPolicy: IfNotPresent
+            env:
+              TZ: Europe/Stockholm
+              DB_HOST:
+                valueFrom:
+                  secretKeyRef:
+                    name: onecli-db-app
+                    key: DB_HOST
+              DB_PORT:
+                valueFrom:
+                  secretKeyRef:
+                    name: onecli-db-app
+                    key: DB_PORT
+              DB_USERNAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: onecli-db-app
+                    key: DB_USERNAME
+              DB_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: onecli-db-app
+                    key: DB_PASSWORD
+              DB_NAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: onecli-db-app
+                    key: DB_NAME
+              DATABASE_URL: postgresql://$(DB_USERNAME):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)
+              GATEWAY_PORT: "10255"
+              GATEWAY_HOST: onecli.${DOMAIN_0}
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: 10254
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: 10254
+                  initialDelaySeconds: 10
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: 10254
+                  initialDelaySeconds: 10
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 60
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+
+    service:
+      app:
+        controller: onecli
+        ports:
+          http:
+            port: 10254
+          gateway:
+            port: 10255
+
+    ingress:
+      app:
+        className: internal
+        annotations:
+          cert-manager.io/cluster-issuer: domain-0-le-prod
+        hosts:
+          - host: onecli.${DOMAIN_0}
+            paths:
+              - path: /
+                service:
+                  identifier: app
+                  port: http
+        tls:
+          - hosts:
+              - onecli.${DOMAIN_0}
+            secretName: onecli-tls
+
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /app/data

@@ -1,0 +1,49 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: onecli-cnpg-main
+  namespace: onecli
+spec:
+  instances: 1
+
+  bootstrap:
+    initdb:
+      database: onecli
+      owner: onecli
+      secret:
+        name: onecli-db-app
+
+  superuserSecret:
+    name: onecli-db-superuser
+
+  storage:
+    storageClass: longhorn
+    size: 20Gi
+
+  walStorage:
+    storageClass: longhorn
+    size: 5Gi
+
+  backup:
+    target: primary
+    barmanObjectStore:
+      destinationPath: s3://${BACKBLAZE_BUCKET_NAME}/cnpg/onecli
+      endpointURL: https://${BACKBLAZE_ENDPOINT}
+      s3Credentials:
+        accessKeyId:
+          name: onecli-db-backup
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: onecli-db-backup
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+        maxParallel: 2
+      data:
+        compression: gzip
+        jobs: 2
+        immediateCheckpoint: true
+
+  monitoring:
+    enablePodMonitor: true
