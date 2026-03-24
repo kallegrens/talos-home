@@ -42,32 +42,11 @@ spec:
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Stockholm
-              DB_HOST:
+              DATABASE_URL:
                 valueFrom:
                   secretKeyRef:
                     name: onecli-db-app
-                    key: DB_HOST
-              DB_PORT:
-                valueFrom:
-                  secretKeyRef:
-                    name: onecli-db-app
-                    key: DB_PORT
-              DB_USERNAME:
-                valueFrom:
-                  secretKeyRef:
-                    name: onecli-db-app
-                    key: DB_USERNAME
-              DB_PASSWORD:
-                valueFrom:
-                  secretKeyRef:
-                    name: onecli-db-app
-                    key: DB_PASSWORD
-              DB_NAME:
-                valueFrom:
-                  secretKeyRef:
-                    name: onecli-db-app
-                    key: DB_NAME
-              DATABASE_URL: postgresql://$(DB_USERNAME):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)
+                    key: DATABASE_URL
               GATEWAY_PORT: "10255"
               GATEWAY_HOST: onecli.${DOMAIN_0}
             probes:
