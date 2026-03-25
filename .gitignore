@@ -21,3 +21,4 @@ resources/
 *.md
 *.bak
 *.pdf
+.env
