@@ -54,6 +54,7 @@ spec:
                     key: DATABASE_URL
               GATEWAY_PORT: "10255"
               GATEWAY_HOST: onecli-proxy.${DOMAIN_0}
+              NEXT_PUBLIC_GATEWAY_URL: "https://onecli.${DOMAIN_0}"
             probes:
               liveness:
                 enabled: true
@@ -125,6 +126,10 @@ spec:
         hosts:
           - host: onecli.${DOMAIN_0}
             paths:
+              - path: /api/vault
+                service:
+                  identifier: gateway
+                  port: gateway
               - path: /
                 service:
                   identifier: app
