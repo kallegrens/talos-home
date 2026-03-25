@@ -60,6 +60,13 @@ spec:
           - name: tls_servername
             value: cloudflare-dns.com
 
+    customDNS:
+      customTTL: 1h
+      filterUnmappedTypes: true
+      mapping:
+        - domain: onecli-proxy.${DOMAIN_0}
+          dnsserver: ${ONECLI_PROXY_IP}
+
     # CANNOT be defined in above yaml section
     queryLog:
       # optional one of: mysql, postgresql, csv, csv-client. If empty, log to console only

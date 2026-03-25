@@ -69,6 +69,7 @@ BACKBLAZE_ENDPOINT: ENC[AES256_GCM,data:mNmegXzrMPuiq6PEduB3zRo7tmWAK49RiXm5lAOW
 BACKBLAZE_BUCKET_ID: ENC[AES256_GCM,data:qbzYRzCQcPvMBySjEuG2xj2GiI1hbOMl,iv:VtUvfXDQJptbx6U0FNnNGaHE/YWUSZrCt1xQschrQVE=,tag:3raOdUrt4815KqfNdqJxSQ==,type:str]
 BACKBLAZE_BUCKET_NAME: ENC[AES256_GCM,data:vuyyFV5J8Ga2GN7b1K4RBc5RGhawUIzmq1w=,iv:OoDkDNpF5TgG66P3vkbnkiMcNhkRorgs68ujcJRoAwQ=,tag:bVf0TqkQo4p4N2aJQtADqg==,type:str]
 RESTIC_ENCRYPTION_KEY: ENC[AES256_GCM,data:VxuzgK2kF1g0j89jSNZbaS6W79Q=,iv:NKucFBN3+OZ3suhycstDPpynv2rej7Q2jcKj1bvUvfU=,tag:ljQPSUVzjM8C3cUK82mkBw==,type:str]
+ONECLI_PROXY_IP: ENC[AES256_GCM,data:VbQrUqAcdOJnEQzqKAU=,iv:cZwoSRHTss5BnQf83rrYOCCYGk+MeILadT3zDof3DhI=,tag:hXko5k5WbNFiQ1kTiXQEQg==,type:str]
 sops:
     shamir_threshold: 3
     age:
@@ -81,7 +82,7 @@ sops:
             YzFxY29sZXpmZ2hIU281SlhvUGFKK1kKi9+myH0uNx0pqSEmn4lJFAP3GfgTFWma
             iPuognyD02fQfdaqUcrCNjZzlQ1Pd2DjzoLASjPTx7w7++0gVBA9Aw==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-03-24T22:39:28Z"
-    mac: ENC[AES256_GCM,data:CI6QXnLGbAxFQ1YE/mfncV0w33HSjXJFbRIpX692/BUW3nh8VT3u9yQrREBy4COh5/xWsz/fKXlTnaCQ1Qtvl6rjcT7YAAXPFvKnu68LA1I6lv9zcgwcsstUQywNlZU/d+fl8BV1VuwqJ0XYX3+dvJlQeg501C6iYyZMu9ySJLI=,iv:d/PlL8qI3NXdDwLiofldaidv7UiFkL6yk6cQLl/lCVo=,tag:L7NK/QVxxyY8i+aHEPT82A==,type:str]
+    lastmodified: "2026-03-25T00:27:21Z"
+    mac: ENC[AES256_GCM,data:X/UBYjAU3KCZ5GZKkP+xU0+iFGR6bCGGF7GDET8kQe9oOzNwV2/OshYvGgPmuU5iVv4TVKJ22SCnl0ybMuW6F/RiRaQ6kZEvx6hz3rmrY0uBLeUSUIZuy3iqdrPsRx0ZanLRF9k/Cnxn8OSsQdwdyI4z1k0PBtRoJZoHeYWB8io=,iv:uWiGJeRUAFy8q4Cltn/yh8E3+YeAb9MSVJ4EQkfhFII=,tag:F5DXGJ6qLvIE578P0XCfjg==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.12.2
