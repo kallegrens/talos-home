@@ -60,12 +60,16 @@ spec:
           - name: tls_servername
             value: cloudflare-dns.com
 
-    customDNS:
-      customTTL: 1h
-      filterUnmappedTypes: true
-      mapping:
-        - domain: onecli-proxy.${DOMAIN_0}
-          dnsserver: ${ONECLI_PROXY_IP}
+    hostsFile:
+      enabled: true
+      sources:
+        - |
+          ${ONECLI_PROXY_IP} onecli-proxy.${DOMAIN_0}
+      hostsTTL: 1h
+      filterLoopback: false
+      loading:
+        refreshPeriod: 4h
+        strategy: fast
 
     # CANNOT be defined in above yaml section
     queryLog:
