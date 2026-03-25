@@ -54,10 +54,6 @@ spec:
                     key: DATABASE_URL
               GATEWAY_PORT: "10255"
               GATEWAY_HOST: onecli-proxy.${DOMAIN_0}
-              BITWARDEN_BASE_URL: "https://api.bitwarden.eu"
-              BITWARDEN_API_URL: "https://api.bitwarden.eu"
-              BITWARDEN_IDENTITY_URL: "https://identity.bitwarden.eu"
-              BW_SERVER: "https://bitwarden.eu"
             probes:
               liveness:
                 enabled: true
