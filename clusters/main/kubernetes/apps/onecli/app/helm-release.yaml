@@ -108,7 +108,7 @@ spec:
         controller: onecli
         type: LoadBalancer
         annotations:
-          metallb.io/address-pool: default
+          metallb.io/address-pool: main
         loadBalancerIP: ${ONECLI_PROXY_IP}
         externalTrafficPolicy: Local
         ports:
