@@ -136,6 +136,9 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 50Gi
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
       profile:
         type: pvc
         volsync:
