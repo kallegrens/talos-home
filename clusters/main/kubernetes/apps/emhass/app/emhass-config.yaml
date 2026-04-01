@@ -33,7 +33,7 @@ data:
         "sensor.goodwe_pv_power",
         "sensor.house_consumption_no_ev"
       ],
-      "use_websocket": false,
+      "use_websocket": true,
       "use_influxdb": false,
       "influxdb_host": "localhost",
       "influxdb_port": 8086,
