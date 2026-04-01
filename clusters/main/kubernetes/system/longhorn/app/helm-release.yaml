@@ -27,6 +27,7 @@ spec:
     defaultSettings:
       # Increase to 3 for a multi-node cluster
       defaultReplicaCount: "1"
+      concurrentAutomaticEngineUpgradePerNodeLimit: "1"
       # Overprovisioning might be needed when using volsync
       storageOverProvisioningPercentage: "100000"
       storageMinimalAvailablePercentage: "15"
