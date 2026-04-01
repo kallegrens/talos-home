@@ -52,6 +52,10 @@ spec:
         podSpec:
           containers:
             main:
+              resources:
+                limits:
+                  cpu: 3000m
+                  memory: 6Gi
               env:
                 PAPERLESS_URL: "{{ .Values.chartContext.appUrl }}"
                 PAPERLESS_ADMIN_USER: "${PAPERLESS_ADMIN_USER}"
@@ -124,8 +128,3 @@ spec:
         backups:
           enabled: true
           credentials: b2
-
-    resources:
-      limits:
-        cpu: 3000m
-        memory: 6Gi
