@@ -65,6 +65,8 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
       output:
         type: nfs
         server: ${NFS_IP}

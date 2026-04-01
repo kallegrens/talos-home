@@ -99,6 +99,8 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
       consume:
         enabled: false
       media:
@@ -111,6 +113,8 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
 
     cnpg:
       main:

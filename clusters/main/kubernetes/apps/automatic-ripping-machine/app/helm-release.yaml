@@ -71,6 +71,8 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
       config:
         type: pvc
         volsync:
@@ -81,6 +83,8 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
       audio:
         enabled: true
         type: nfs

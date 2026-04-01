@@ -80,6 +80,8 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
       audiobooks:
         enabled: true
         type: nfs

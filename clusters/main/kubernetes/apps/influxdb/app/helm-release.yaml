@@ -122,6 +122,8 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
         mountPath: /var/lib/influxdb2
 
       config:
@@ -135,4 +137,6 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
         mountPath: /etc/influxdb2

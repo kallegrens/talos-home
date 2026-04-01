@@ -74,6 +74,8 @@ spec:
               enabled: false
             src:
               enabled: true
+              moverSecurityContext:
+                fsGroupChangePolicy: "OnRootMismatch"
       sync:
         enabled: true
         type: nfs
