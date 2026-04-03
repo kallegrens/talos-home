@@ -44,7 +44,7 @@ spec:
     plex:
       # User Defined
       serverIP: ${PLEX_IP}
-      additionalAdvertiseURL: "" # https://${PLEX_IP}:32400,
+      additionalAdvertiseURL: "https://plex.${DOMAIN_0}:443" # https://${PLEX_IP}:32400,
     workload: # https://${PLEX_IP}:32400,http://plex.${DOMAIN_0}:32400,
       main: # https://plex.${DOMAIN_0}:32400"
         podSpec:
@@ -57,6 +57,7 @@ spec:
       main:
         type: LoadBalancer
         loadBalancerIP: ${PLEX_IP}
+        externalTrafficPolicy: Local
     ingress:
       main:
         enabled: true
