@@ -38,7 +38,7 @@ spec:
             image:
               repository: ghcr.io/kallegrens/emhass
               # Auto-rebased build from fork with PR #745 (Solcast Rate Limit Fix)
-              tag: master-6531ce2
+              tag: master-8757d2a
               pullPolicy: IfNotPresent # Immutable tag — no need to always re-pull
             env:
               TZ: Europe/Stockholm
