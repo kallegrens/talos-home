@@ -1,0 +1,49 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: vikunja-cnpg-main
+  namespace: vikunja
+spec:
+  instances: 1
+
+  bootstrap:
+    initdb:
+      database: vikunja
+      owner: vikunja
+      secret:
+        name: vikunja-db-app
+
+  superuserSecret:
+    name: vikunja-db-superuser
+
+  storage:
+    storageClass: longhorn
+    size: 5Gi
+
+  walStorage:
+    storageClass: longhorn
+    size: 2Gi
+
+  backup:
+    target: primary
+    barmanObjectStore:
+      destinationPath: s3://${BACKBLAZE_BUCKET_NAME}/cnpg/vikunja
+      endpointURL: https://${BACKBLAZE_ENDPOINT}
+      s3Credentials:
+        accessKeyId:
+          name: vikunja-db-backup
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: vikunja-db-backup
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+        maxParallel: 2
+      data:
+        compression: gzip
+        jobs: 2
+        immediateCheckpoint: true
+
+  monitoring:
+    enablePodMonitor: true

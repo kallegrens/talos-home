@@ -25,3 +25,5 @@ resources:
   - emhass/ks.yaml
   - onecli-db/ks.yaml
   - onecli/ks.yaml
+  - vikunja-db/ks.yaml
+  - vikunja/ks.yaml

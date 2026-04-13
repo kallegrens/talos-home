@@ -1,0 +1,159 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vikunja
+  namespace: vikunja
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.2
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      interval: 15m
+  timeout: 20m
+  maxHistory: 3
+  driftDetection:
+    mode: warn
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    controllers:
+      vikunja:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/go-vikunja/vikunja
+              tag: 2.3.0@sha256:f6b80393c1998cd5cd0dc38d24762c59ab4c10000a6f1032ef5b554e262cab93
+              pullPolicy: IfNotPresent
+            env:
+              TZ: Europe/Stockholm
+              VIKUNJA_DATABASE_TYPE: postgres
+              VIKUNJA_DATABASE_HOST: vikunja-cnpg-main-rw
+              VIKUNJA_DATABASE_USER: vikunja
+              VIKUNJA_DATABASE_DATABASE: vikunja
+              VIKUNJA_DATABASE_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: vikunja-db-app
+                    key: password
+              VIKUNJA_CACHE_TYPE: redis
+              VIKUNJA_REDIS_ENABLED: "true"
+              VIKUNJA_REDIS_HOST: localhost:6379
+              VIKUNJA_SERVICE_PUBLICURL: https://vikunja.${DOMAIN_0}/
+              VIKUNJA_SERVICE_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: vikunja-app-secret
+                    key: VIKUNJA_SERVICE_SECRET
+              VIKUNJA_SERVICE_ENABLEREGISTRATION: "true"
+              VIKUNJA_SERVICE_TIMEZONE: Europe/Stockholm
+              VIKUNJA_FILES_BASEPATH: /app/vikunja/files
+              VIKUNJA_SERVICE_ENABLETASKATTACHMENTS: "true"
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 3456
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 3456
+                  initialDelaySeconds: 10
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 3456
+                  initialDelaySeconds: 10
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 60
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+
+          redis:
+            image:
+              repository: docker.io/valkey/valkey
+              tag: 9.0.3-alpine
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 50m
+                memory: 128Mi
+
+    service:
+      app:
+        controller: vikunja
+        type: ClusterIP
+        ports:
+          http:
+            port: 3456
+
+    ingress:
+      app:
+        className: internal
+        annotations:
+          cert-manager.io/cluster-issuer: domain-0-le-prod
+        hosts:
+          - host: vikunja.${DOMAIN_0}
+            paths:
+              - path: /
+                service:
+                  identifier: app
+                  port: http
+        tls:
+          - hosts:
+              - vikunja.${DOMAIN_0}
+            secretName: vikunja-tls
+
+    persistence:
+      files:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 25Gi
+        globalMounts:
+          - path: /app/vikunja/files
