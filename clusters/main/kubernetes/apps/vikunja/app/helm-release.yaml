@@ -69,6 +69,16 @@ spec:
               VIKUNJA_SERVICE_TIMEZONE: Europe/Stockholm
               VIKUNJA_FILES_BASEPATH: /app/vikunja/files
               VIKUNJA_SERVICE_ENABLETASKATTACHMENTS: "true"
+              VIKUNJA_MAILER_ENABLED: "true"
+              VIKUNJA_MAILER_HOST: smtp.migadu.com
+              VIKUNJA_MAILER_PORT: "587"
+              VIKUNJA_MAILER_USERNAME: vikunja@lundgrens.net
+              VIKUNJA_MAILER_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: vikunja-app-secret
+                    key: VIKUNJA_MAILER_PASSWORD
+              VIKUNJA_MAILER_FROMEMAIL: vikunja@lundgrens.net
             probes:
               liveness:
                 enabled: true
