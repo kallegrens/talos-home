@@ -671,6 +671,8 @@
     Translates EMHASS p_deferrable0 into Easee charger commands.
     Converts scheduled watts to amps (6-16A per phase, 3-phase).
     One phase-amp = 230V → 690W per amp total.
+    Forces phase mode to auto_phase on every scheduled-charge update,
+    so scheduled charging is never stuck in 1-phase after solar mode.
     When p_deferrable0 > 0: resume and set dynamic current limit.
     When p_deferrable0 ≈ 0: pause charging.
     Only acts when ev_charge_requested is ON and cable is plugged in.
@@ -712,6 +714,13 @@
               entity_id: sensor.laddare_vid_husknuten_status
               state: "charging"
           sequence:
+            - action: easee.set_charger_phase_mode
+              data:
+                device_id: "{{ easee_device_id }}"
+                phase_mode: auto_phase
+              continue_on_error: true
+            - delay:
+                seconds: 2
             - action: easee.set_charger_dynamic_limit
               data:
                 device_id: "{{ easee_device_id }}"
@@ -729,6 +738,13 @@
               entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
               state: "off"
           sequence:
+            - action: easee.set_charger_phase_mode
+              data:
+                device_id: "{{ easee_device_id }}"
+                phase_mode: auto_phase
+              continue_on_error: true
+            - delay:
+                seconds: 2
             - action: easee.action_command
               data:
                 device_id: "{{ easee_device_id }}"
@@ -846,15 +862,14 @@
 - id: "1770700000021"
   alias: EV Solar Surplus Charging
   description: >-
-    Every 60 s, checks solar surplus (PV minus house minus battery
-    charging) and adjusts the Easee charger accordingly. Uses 1-phase
+    Every 60 s, checks EV solar budget (total available PV headroom,
+    including current EV draw) and adjusts the Easee charger accordingly.
+    Uses 1-phase
     mode when surplus is 1.4–4.1 kW (min 6 A × 230 V = 1380 W) and
     3-phase mode above 4.1 kW (6 A × 690 W). Pauses when surplus
-    drops below threshold. Uses sensor.solar_surplus_for_ev which is
-    feedback-loop-safe (based on PV, not the grid meter, so battery
-    discharge is never mistaken for solar surplus).
-    Hysteresis: starts after 2 min of sufficient surplus, stops after
-    3 min of insufficient surplus (via last_action tracking).
+    drops below threshold. Uses sensor.solar_surplus_for_ev based on
+    PV/house/battery telemetry (not the grid meter), so battery
+    discharge is never mistaken for solar surplus.
   triggers:
     - trigger: time_pattern
       minutes: "/1"
@@ -873,7 +888,7 @@
         {{ states('sensor.p_deferrable0') | float(0) <= 0 }}
   actions:
     - variables:
-        surplus: "{{ states('sensor.solar_surplus_for_ev') | float(0) }}"
+        surplus_budget: "{{ states('sensor.solar_surplus_for_ev') | float(0) }}"
         ev_charging: "{{ is_state('sensor.laddare_vid_husknuten_status', 'charging') }}"
         easee_device_id: "634339e1d534267196267f3613120636"
         # Phase thresholds
@@ -887,7 +902,7 @@
         # --- 3-PHASE: surplus >= 4.14 kW ---
         - conditions:
             - condition: template
-              value_template: "{{ surplus >= min_3p_w }}"
+              value_template: "{{ surplus_budget >= min_3p_w }}"
           sequence:
             # Switch to 3-phase if not already
             - action: easee.set_charger_phase_mode
@@ -920,15 +935,15 @@
             - action: easee.set_charger_dynamic_limit
               data:
                 device_id: "{{ easee_device_id }}"
-                current: "{{ [16, [6, (surplus / 690) | round(0) | int] | max] | min }}"
+                current: "{{ [16, [6, (surplus_budget / 690) | round(0) | int] | max] | min }}"
                 time_to_live: 60
               continue_on_error: true
         # --- 1-PHASE: surplus 1.5–4.14 kW ---
         - conditions:
             - condition: template
               value_template: >-
-                {{ surplus >= start_threshold_1p or
-                   (ev_charging and surplus >= stop_threshold) }}
+                {{ surplus_budget >= start_threshold_1p or
+                   (ev_charging and surplus_budget >= stop_threshold) }}
           sequence:
             # Switch to 1-phase if not already
             - action: easee.set_charger_phase_mode
@@ -961,7 +976,7 @@
             - action: easee.set_charger_dynamic_limit
               data:
                 device_id: "{{ easee_device_id }}"
-                current: "{{ [16, [6, (surplus / 230) | round(0) | int] | max] | min }}"
+                current: "{{ [16, [6, (surplus_budget / 230) | round(0) | int] | max] | min }}"
                 time_to_live: 60
               continue_on_error: true
         # --- PAUSE: surplus below threshold ---
@@ -974,6 +989,11 @@
               data:
                 device_id: "{{ easee_device_id }}"
                 action_command: pause
+              continue_on_error: true
+            - action: easee.set_charger_phase_mode
+              data:
+                device_id: "{{ easee_device_id }}"
+                phase_mode: auto_phase
               continue_on_error: true
   mode: single
 

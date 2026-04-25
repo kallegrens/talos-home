@@ -422,10 +422,12 @@ template:
         state: >-
           {{ -(states('sensor.goodwe_meter_active_power_total') | float(0)) }}
 
-  # Solar surplus available for EV charging.
+  # Solar budget available for EV charging.
   # Uses PV production directly (not the grid meter) so battery discharge
-  # is never mistaken for solar surplus. Subtracts house load (excl. EV)
-  # and EMHASS-commanded battery charging (eco_charge, ems_mode=auto).
+  # is never mistaken for solar surplus. Represents TOTAL EV budget, i.e.
+  # available headroom regardless of whether the EV is currently charging.
+  # Formula: PV - total house load - EMHASS battery charge + current EV draw.
+  # This keeps the value stable when charging starts (no self-induced dive).
   #
   # In idle mode (general + charge_pv), the battery absorbs PV surplus
   # opportunistically — but yields automatically when the EV starts,
@@ -443,12 +445,13 @@ template:
         icon: mdi:solar-power-variant
         state: >-
           {% set pv = states('sensor.goodwe_pv_power') | float(0) %}
-          {% set house = states('sensor.house_consumption_no_ev') | float(0) %}
+          {% set house_total = states('sensor.goodwe_house_consumption') | float(0) %}
+          {% set ev_w = states('sensor.laddare_vid_husknuten_power') | float(0) * 1000 %}
           {% set batt = states('sensor.goodwe_battery_power') | float(0) %}
           {% set ems = states('select.goodwe_ems_mode') %}
           {% set emhass_charging = ems == 'auto' and batt < 0 %}
           {% set batt_charge = (-batt) if emhass_charging else 0 %}
-          {{ [pv - house - batt_charge, 0] | max | round(0) }}
+          {{ [pv - house_total - batt_charge + ev_w, 0] | max | round(0) }}
 
   # Snow detector: fires when forecast > min_forecast_w but actual < snow_threshold (5%).
   # An automation latches input_boolean.solar_panels_snow_covered ON
