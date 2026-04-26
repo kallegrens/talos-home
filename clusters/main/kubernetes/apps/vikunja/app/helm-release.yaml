@@ -43,7 +43,7 @@ spec:
           app:
             image:
               repository: ghcr.io/kallegrens/vikunja
-              tag: fix-caldav
+              tag: fix-caldav-again
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Stockholm
