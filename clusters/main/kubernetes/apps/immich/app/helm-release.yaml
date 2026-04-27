@@ -105,7 +105,7 @@ spec:
             src:
               enabled: true
         annotations:
-          longhorn.io/recurring-job-selector: '[{"name":"trim-caches","isGroup":true}]'
+          longhorn.io/recurring-job-selector: "[{\"name\":\"trim-caches\",\"isGroup\":true}]"
       library:
         type: nfs
         server: ${NFS_IP}
@@ -121,7 +121,7 @@ spec:
             src:
               enabled: true
         annotations:
-          longhorn.io/recurring-job-selector: '[{"name":"trim-caches","isGroup":true}]'
+          longhorn.io/recurring-job-selector: "[{\"name\":\"trim-caches\",\"isGroup\":true}]"
       backups:
         type: nfs
         server: ${NFS_IP}

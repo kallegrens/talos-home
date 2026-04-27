@@ -64,7 +64,7 @@ spec:
                 PAPERLESS_OCR_LANGUAGE: "swe+eng"
                 PAPERLESS_OCR_LANGUAGES: "eng fra deu spa ita swe"
                 PAPERLESS_WORKER_TIMEOUT: 21600
-                PAPERLESS_OCR_USER_ARGS: '{"invalidate_digital_signatures": true}'
+                PAPERLESS_OCR_USER_ARGS: "{\"invalidate_digital_signatures\": true}"
                 PAPERLESS_DATE_PARSER_LANGUAES: "se-SE+en"
                 # PAPERLESS_WEBSERVER_WORKERS: 2
                 # PAPERLESS_CONSUMER_POLLING: 60
