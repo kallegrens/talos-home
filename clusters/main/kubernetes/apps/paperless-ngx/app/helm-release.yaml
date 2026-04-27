@@ -103,8 +103,6 @@ spec:
               enabled: false
             src:
               enabled: true
-              moverSecurityContext:
-                fsGroupChangePolicy: "OnRootMismatch"
       consume:
         enabled: false
       media:
@@ -117,9 +115,6 @@ spec:
               enabled: false
             src:
               enabled: true
-              unlock: "20260426020000"
-              moverSecurityContext:
-                fsGroupChangePolicy: "OnRootMismatch"
 
     cnpg:
       main:

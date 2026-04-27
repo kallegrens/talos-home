@@ -104,8 +104,6 @@ spec:
               enabled: false
             src:
               enabled: true
-              moverSecurityContext:
-                fsGroupChangePolicy: "OnRootMismatch"
         annotations:
           longhorn.io/recurring-job-selector: '[{"name":"trim-caches","isGroup":true}]'
       library:
@@ -122,8 +120,6 @@ spec:
               enabled: false
             src:
               enabled: true
-              moverSecurityContext:
-                fsGroupChangePolicy: "OnRootMismatch"
         annotations:
           longhorn.io/recurring-job-selector: '[{"name":"trim-caches","isGroup":true}]'
       backups:
@@ -141,9 +137,6 @@ spec:
             src:
               enabled: true
               cacheCapacity: 50Gi
-              unlock: "20260426020000"
-              moverSecurityContext:
-                fsGroupChangePolicy: "OnRootMismatch"
       profile:
         type: pvc
         volsync:
@@ -154,8 +147,6 @@ spec:
               enabled: false
             src:
               enabled: true
-              moverSecurityContext:
-                fsGroupChangePolicy: "OnRootMismatch"
       video:
         type: nfs
         server: ${NFS_IP}
