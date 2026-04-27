@@ -117,6 +117,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              unlock: "20260426020000"
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
 

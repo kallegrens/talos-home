@@ -141,6 +141,7 @@ spec:
             src:
               enabled: true
               cacheCapacity: 50Gi
+              unlock: "20260426020000"
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
       profile:
