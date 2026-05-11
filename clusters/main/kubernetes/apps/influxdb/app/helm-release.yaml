@@ -45,7 +45,7 @@ spec:
 
     image:
       repository: influxdb
-      tag: "2.8.0"
+      tag: "2.9.0"
       pullPolicy: IfNotPresent
 
     workload:
