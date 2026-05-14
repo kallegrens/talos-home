@@ -109,7 +109,7 @@ spec:
 
     securityContext:
       container:
-        PUID: 0
+        privileged: true
 
     workload:
       main:
