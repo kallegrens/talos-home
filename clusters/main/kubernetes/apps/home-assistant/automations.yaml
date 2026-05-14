@@ -1318,3 +1318,125 @@
             departure_datetime: >-
               {{ states('input_datetime.ev_ready_by') }}
   mode: single
+
+# ===========================================================================
+# Mower Rain Management
+# ===========================================================================
+
+- id: "1770700000040"
+  alias: "Mower: Park on rain"
+  description: >-
+    Parks Skalman immediately when the Ecowitt station detects rain above
+    0.2 mm/h. Sets mower_rain_override so it won't auto-resume until the
+    lawn dryness model clears.
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.wsmihp2550_pro_v1_6_9_rain_rate
+      above: 0.2
+  conditions: []
+  actions:
+    - action: gardena_smart_system.mower_park_until_notice
+      data:
+        device_id: "98fbcef5-6355-40d6-b7b5-a51b929575eb"
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.mower_rain_override
+  mode: single
+
+- id: "1770700000041"
+  alias: "Mower: Record rain stop"
+  description: >-
+    When rain_rate stays below 0.2 mm/h for 5 continuous minutes, snapshots
+    the stop time and the Ecowitt event_rain total. The Mower Lawn Wetness
+    sensor uses these to model how long the lawn needs to dry.
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.wsmihp2550_pro_v1_6_9_rain_rate
+      below: 0.2
+      for: "00:05:00"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.mower_rain_override
+      state: "on"
+  actions:
+    - action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.mower_rain_stop_time
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - action: input_number.set_value
+      target:
+        entity_id: input_number.mower_rain_event_mm
+      data:
+        value: "{{ states('sensor.wsmihp2550_pro_v1_6_9_event_rain') | float(0) }}"
+  mode: single
+
+- id: "1770700000042"
+  alias: "Mower: Rain forecast check"
+  description: >-
+    Runs every hour and at HA startup. Fetches the next 4 hours of hourly
+    forecast from met.no. Sets mower_rain_forecast if any hour has
+    precipitation_probability > 40 % or precipitation > 0.5 mm.
+  triggers:
+    - trigger: time_pattern
+      hours: "/1"
+    - trigger: homeassistant
+      event: start
+  conditions: []
+  actions:
+    - action: weather.get_forecasts
+      data:
+        entity_id: weather.forecast_home
+        type: hourly
+      response_variable: forecast_data
+    - variables:
+        next_4h: >-
+          {{ forecast_data['weather.forecast_home']['forecast'][:4] }}
+        rain_expected: >-
+          {{ next_4h | selectattr('precipitation_probability', '>', 40) | list | length > 0
+             or next_4h | selectattr('precipitation', '>', 0.5) | list | length > 0 }}
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ rain_expected }}"
+          sequence:
+            - action: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.mower_rain_forecast
+      default:
+        - action: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.mower_rain_forecast
+  mode: single
+
+- id: "1770700000043"
+  alias: "Mower: Resume when dry"
+  description: >-
+    When binary_sensor.mower_ok_to_mow turns on (lawn dry, no rain, no
+    forecast) and the mower was parked by the rain automation, resumes
+    the mower's internal schedule. Also triggers at 07:00 to catch cases
+    where the sensor was already on before daylight hours.
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.mower_ok_to_mow
+      to: "on"
+    - trigger: time
+      at: "07:00:00"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.mower_rain_override
+      state: "on"
+    - condition: state
+      entity_id: binary_sensor.mower_ok_to_mow
+      state: "on"
+    - condition: time
+      after: "07:00:00"
+      before: "20:00:00"
+  actions:
+    - action: gardena_smart_system.mower_start
+      data:
+        device_id: "98fbcef5-6355-40d6-b7b5-a51b929575eb"
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.mower_rain_override
+  mode: single

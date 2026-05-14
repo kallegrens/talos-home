@@ -38,6 +38,14 @@ input_boolean:
     name: EV charge requested
     icon: mdi:ev-station
     initial: false
+  mower_rain_override:
+    name: Mower parked by rain
+    icon: mdi:lawn-mower-off
+    initial: false
+  mower_rain_forecast:
+    name: Rain forecast in next 4 hours
+    icon: mdi:weather-pouring
+    initial: false
 
 input_datetime:
   emhass_last_publish:
@@ -48,6 +56,11 @@ input_datetime:
   ev_ready_by:
     name: EV ready by
     icon: mdi:clock-end
+    has_date: true
+    has_time: true
+  mower_rain_stop_time:
+    name: Mower rain stop time
+    icon: mdi:weather-rainy
     has_date: true
     has_time: true
 
@@ -69,6 +82,15 @@ input_number:
     initial: 80
     unit_of_measurement: "%"
     mode: slider
+  mower_rain_event_mm:
+    name: Mower rain event mm
+    icon: mdi:cup-water
+    min: 0
+    max: 500
+    step: 0.1
+    initial: 0
+    unit_of_measurement: "mm"
+    mode: box
 
 # ---------------------------------------------------------------------------
 # EMHASS REST commands
@@ -599,6 +621,58 @@ template:
           {% set overhead = 1.05 %}
           {% set needed = ((target - soc) / 100 * battery_kwh * overhead) %}
           {{ [needed, 0] | max | round(1) }}
+
+  # ---------------------------------------------------------------------------
+  # Mower rain / lawn-dryness sensors
+  # ---------------------------------------------------------------------------
+  # Trigger-based: recomputes every 5 min and whenever a key input changes.
+  # Physics model:
+  #   T_dry = 0.5 h/mm × event_mm × f_temp × f_hum × f_solar
+  #   f_temp  = e^(-(T_out - 20) × 0.04)  — colder → slower evaporation
+  #   f_hum   = max(0.5, 1 + (H - 60)/100) — more humid → slower
+  #   f_solar = max(0.4, 1 - R/600)        — more sun → faster (600 W/m² = full sun)
+  #   Wetness = max(0, (T_dry - Δt) / T_dry × 100)
+  - trigger:
+      - trigger: time_pattern
+        minutes: "/5"
+      - trigger: state
+        entity_id:
+          - input_datetime.mower_rain_stop_time
+          - input_number.mower_rain_event_mm
+          - sensor.wsmihp2550_pro_v1_6_9_outdoor_temperature
+          - sensor.wsmihp2550_pro_v1_6_9_humidity
+          - sensor.wsmihp2550_pro_v1_6_9_solar_radiation
+    sensor:
+      - name: "Mower Lawn Wetness"
+        unique_id: mower_lawn_wetness
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:water-percent
+        state: >-
+          {% set rain_stop = states('input_datetime.mower_rain_stop_time') %}
+          {% set event_mm = states('input_number.mower_rain_event_mm') | float(0) %}
+          {% if rain_stop in ('unknown', 'unavailable') or event_mm <= 0 %}
+            0
+          {% else %}
+            {% set T = states('sensor.wsmihp2550_pro_v1_6_9_outdoor_temperature') | float(15) %}
+            {% set H = states('sensor.wsmihp2550_pro_v1_6_9_humidity') | float(70) %}
+            {% set R = states('sensor.wsmihp2550_pro_v1_6_9_solar_radiation') | float(0) %}
+            {% set delta_h = (as_timestamp(now()) - as_timestamp(rain_stop)) / 3600 %}
+            {% set f_temp = (2.71828 ** (-(T - 20) * 0.04)) %}
+            {% set f_hum = [1 + (H - 60) / 100, 0.5] | max %}
+            {% set f_solar = [1 - R / 600, 0.4] | max %}
+            {% set t_dry = [0.5 * event_mm * f_temp * f_hum * f_solar, 0.1] | max %}
+            {{ [((t_dry - delta_h) / t_dry * 100) | round(1), 0] | max }}
+          {% endif %}
+
+  - binary_sensor:
+      - name: "Mower OK to Mow"
+        unique_id: mower_ok_to_mow
+        icon: mdi:lawn-mower
+        state: >-
+          {{ states('sensor.mower_lawn_wetness') | float(100) <= 5
+             and states('sensor.wsmihp2550_pro_v1_6_9_rain_rate') | float(0) < 0.2
+             and not is_state('input_boolean.mower_rain_forecast', 'on') }}
 
 # ---------------------------------------------------------------------------
 # Riemann-sum energy sensors (power → kWh for Energy Dashboard)
