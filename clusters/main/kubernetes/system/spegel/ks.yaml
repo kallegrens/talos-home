@@ -10,3 +10,8 @@ spec:
   sourceRef:
     kind: GitRepository
     name: cluster
+  # Suspended: spegel is a P2P image mirror between nodes.
+  # Useless on a single-node cluster — no peers to bootstrap from,
+  # causing infinite crash loop (routing table empty). Re-enable when
+  # adding more nodes.
+  suspend: true
