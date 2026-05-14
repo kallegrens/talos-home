@@ -108,12 +108,20 @@ spec:
             arm-perms: {}
 
       abcde-conf:
-        type: configMap
-        name: abcde-conf
+        enabled: true
+        type: configmap
+        objectName: abcde-conf
         globalMounts:
           - path: /home/arm/.abcde.conf
             subPath: abcde.conf
-            readOnly: true
+
+    configmap:
+      abcde-conf:
+        enabled: true
+        data:
+          abcde.conf: |
+            OUTPUTTYPE=opus
+            OPUSENCOPTS=--bitrate 128
 
     securityContext:
       container:
