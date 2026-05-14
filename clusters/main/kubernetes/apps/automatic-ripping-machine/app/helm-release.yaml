@@ -108,7 +108,6 @@ spec:
             arm-perms: {}
 
       abcde-conf:
-        enabled: true
         type: configMap
         name: abcde-conf
         globalMounts:
