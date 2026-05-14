@@ -107,6 +107,10 @@ spec:
             main: {}
             arm-perms: {}
 
+    securityContext:
+      container:
+        PUID: 0
+
     workload:
       main:
         replicas: 1
