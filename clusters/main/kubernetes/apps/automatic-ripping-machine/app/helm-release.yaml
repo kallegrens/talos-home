@@ -111,17 +111,9 @@ spec:
         enabled: true
         type: configmap
         objectName: abcde-conf
-        globalMounts:
-          - path: /home/arm/.abcde.conf
-            subPath: abcde.conf
-
-    configmap:
-      abcde-conf:
-        enabled: true
-        data:
-          abcde.conf: |
-            OUTPUTTYPE=opus
-            OPUSENCOPTS=--bitrate 128
+        expandObjectName: false
+        mountPath: /home/arm/.abcde.conf
+        subPath: abcde.conf
 
     securityContext:
       container:
