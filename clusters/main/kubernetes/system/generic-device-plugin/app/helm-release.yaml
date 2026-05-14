@@ -39,5 +39,5 @@ spec:
                   groups:
                     - count: 1
                       paths:
-                        - path: /dev/sr0
+                        - path: /dev/sr*
                         - path: /dev/sg0

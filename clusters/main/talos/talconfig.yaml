@@ -38,6 +38,7 @@ nodes:
     patches:
       - "@./patches/nvidia.yaml"
       - "@./patches/kubelet-gc.yaml"
+      - "@./patches/optical-udev.yaml"
     nameservers:
       - 1.1.1.1
       - 9.9.9.9

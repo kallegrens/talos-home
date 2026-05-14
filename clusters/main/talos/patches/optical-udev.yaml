@@ -1,0 +1,5 @@
+machine:
+  udev:
+    rules:
+      - 'SUBSYSTEM=="block", KERNEL=="sr*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", SYMLINK+="optical"'
+      - 'SUBSYSTEM=="scsi_generic", KERNEL=="sg*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", SYMLINK+="optical-sg"'
