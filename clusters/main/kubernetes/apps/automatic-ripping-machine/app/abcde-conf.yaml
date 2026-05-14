@@ -8,4 +8,4 @@ data:
   abcde.conf: |
     OUTPUTTYPE=opus
     OPUSENCOPTS="--bitrate 128"
-    CDPARANOIAOPT="-- -X 5"
+    CDPARANOIAOPTS="-z 5"
