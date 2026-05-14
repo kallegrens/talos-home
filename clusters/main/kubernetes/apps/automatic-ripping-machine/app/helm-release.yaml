@@ -131,3 +131,4 @@ spec:
               resources:
                 limits:
                   truecharts.org/bluray: 1
+                  memory: 8Gi
