@@ -107,6 +107,15 @@ spec:
             main: {}
             arm-perms: {}
 
+      abcde-conf:
+        enabled: true
+        type: configMap
+        name: abcde-conf
+        globalMounts:
+          - path: /home/arm/.abcde.conf
+            subPath: abcde.conf
+            readOnly: true
+
     securityContext:
       container:
         privileged: true
