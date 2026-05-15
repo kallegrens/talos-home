@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arm-udev-rules
+  namespace: automatic-ripping-machine
+data:
+  52-arm-optical-perms.rules: |
+    # Fix permissions on generic-device-plugin device nodes (always root:root).
+    # Runs at cold-plug (add) and on media insert (change) so /dev/optical and
+    # /dev/cdrom become accessible to the arm user (cdrom group).
+    SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ACTION=="add|change", RUN+="/bin/chown root:cdrom /dev/optical /dev/cdrom"

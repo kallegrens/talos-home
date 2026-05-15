@@ -125,6 +125,14 @@ spec:
           main:
             patch-main-py: {}
 
+      arm-udev-rules:
+        enabled: true
+        type: configmap
+        objectName: arm-udev-rules
+        expandObjectName: false
+        mountPath: /etc/udev/rules.d/52-arm-optical-perms.rules
+        subPath: 52-arm-optical-perms.rules
+
       main-py-patched:
         enabled: true
         type: emptyDir
@@ -156,13 +164,6 @@ spec:
                 - /patcher/apply_patch.py
           containers:
             main:
-              lifecycle:
-                postStart:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - chown root:cdrom /dev/optical /dev/cdrom 2>/dev/null; true
               env:
                 SKIP_TRANSCODE: "true"
                 RIPMETHOD: "mkv"

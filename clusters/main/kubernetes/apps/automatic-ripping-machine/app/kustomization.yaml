@@ -4,4 +4,5 @@ resources:
   - namespace.yaml
   - abcde-conf.yaml
   - main-py-patcher.yaml
+  - udev-rules.yaml
   - helm-release.yaml
