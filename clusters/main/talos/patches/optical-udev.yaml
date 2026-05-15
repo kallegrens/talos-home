@@ -1,5 +1,5 @@
 machine:
   udev:
     rules:
-      - 'SUBSYSTEM=="block", KERNEL=="sr*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", SYMLINK+="optical"'
-      - 'SUBSYSTEM=="scsi_generic", KERNEL=="sg*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", SYMLINK+="optical-sg"'
+      - 'SUBSYSTEM=="block", KERNEL=="sr*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", SYMLINK+="optical", GROUP="cdrom", MODE="0660"'
+      - 'SUBSYSTEM=="scsi_generic", KERNEL=="sg*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", SYMLINK+="optical-sg", GROUP="cdrom", MODE="0660"'
