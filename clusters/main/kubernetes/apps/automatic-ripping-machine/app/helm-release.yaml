@@ -156,6 +156,13 @@ spec:
                 - /patcher/apply_patch.py
           containers:
             main:
+              lifecycle:
+                postStart:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - chown root:cdrom /dev/optical /dev/cdrom 2>/dev/null; true
               env:
                 SKIP_TRANSCODE: "true"
                 RIPMETHOD: "mkv"
