@@ -125,13 +125,6 @@ spec:
         podSpec:
           containers:
             main:
-              lifecycle:
-                postStart:
-                  type: exec
-                  command:
-                    - sh
-                    - -c
-                    - "chmod 660 /dev/optical && chgrp cdrom /dev/optical || true"
               env:
                 SKIP_TRANSCODE: "true"
                 RIPMETHOD: "mkv"
