@@ -8,5 +8,4 @@ data:
   abcde.conf: |
     OUTPUTTYPE=opus
     OPUSENCOPTS="--bitrate 128"
-    CDPARANOIAOPTS="--never-skip=5"
     CDROM=/dev/opticalical
