@@ -123,20 +123,15 @@ spec:
       main:
         replicas: 1
         podSpec:
-          initContainers:
-            fix-optical-perms:
-              enabled: true
-              type: init
-              imageSelector: image
-              command:
-                - sh
-                - -c
-                - "chmod 660 /dev/optical && chgrp cdrom /dev/optical && echo 'Fixed /dev/optical permissions'"
-              securityContext:
-                container:
-                  privileged: true
           containers:
             main:
+              lifecycle:
+                postStart:
+                  type: exec
+                  command:
+                    - sh
+                    - -c
+                    - "chmod 660 /dev/optical && chgrp cdrom /dev/optical || true"
               env:
                 SKIP_TRANSCODE: "true"
                 RIPMETHOD: "mkv"
