@@ -125,16 +125,16 @@ spec:
         podSpec:
           initContainers:
             fix-optical-perms:
-              image:
-                repository: busybox
-                tag: latest
-                pullPolicy: IfNotPresent
+              enabled: true
+              type: init
+              imageSelector: image
               command:
                 - sh
                 - -c
                 - "chmod 660 /dev/optical && chgrp cdrom /dev/optical && echo 'Fixed /dev/optical permissions'"
               securityContext:
-                privileged: true
+                container:
+                  privileged: true
           containers:
             main:
               env:
