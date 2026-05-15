@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arm-main-py-patcher
+  namespace: automatic-ripping-machine
+data:
+  apply_patch.py: |
+    #!/usr/bin/env python3
+    """
+    Patches /opt/arm/arm/ripper/main.py to resolve optical drive symlinks
+    by device identity (major:minor) so drive re-enumeration from sr0 to sr1
+    (or any srX) does not spawn duplicate ARM jobs.
+
+    Applied by an init container on every pod start.
+    """
+    import sys
+
+    SRC = '/opt/arm/arm/ripper/main.py'
+    DST = '/patched/main.py'
+
+    OLD = '    drive = SystemDrives.query.filter_by(mount=devpath).one()  # unique mounts'
+
+    NEW = (
+        '    import os as _os\n'
+        '    try:\n'
+        '        _input_rdev = _os.stat(devpath).st_rdev\n'
+        '        for _d in SystemDrives.query.all():\n'
+        '            try:\n'
+        '                if _os.stat(_d.mount).st_rdev == _input_rdev:\n'
+        '                    devpath = _d.mount\n'
+        '                    break\n'
+        '            except OSError:\n'
+        '                pass\n'
+        '    except OSError:\n'
+        '        pass\n'
+        '    drive = SystemDrives.query.filter_by(mount=devpath).one()  # unique mounts'
+    )
+
+    with open(SRC, 'r') as f:
+        content = f.read()
+
+    if OLD not in content:
+        print(f'ERROR: patch target not found in {SRC}', file=sys.stderr)
+        print('ARM version may have changed; patch needs updating', file=sys.stderr)
+        sys.exit(1)
+
+    patched = content.replace(OLD, NEW, 1)
+
+    with open(DST, 'w') as f:
+        f.write(patched)
+
+    print(f'Patch applied: {SRC} -> {DST}')

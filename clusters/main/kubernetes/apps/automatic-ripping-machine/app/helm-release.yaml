@@ -115,6 +115,27 @@ spec:
         mountPath: /home/arm/.abcde.conf
         subPath: abcde.conf
 
+      main-py-patcher:
+        enabled: true
+        type: configmap
+        objectName: arm-main-py-patcher
+        expandObjectName: false
+        mountPath: /patcher
+        targetSelector:
+          main:
+            patch-main-py: {}
+
+      main-py-patched:
+        enabled: true
+        type: emptyDir
+        targetSelector:
+          main:
+            main:
+              mountPath: /opt/arm/arm/ripper/main.py
+              subPath: main.py
+            patch-main-py:
+              mountPath: /patched
+
     securityContext:
       container:
         privileged: true
@@ -123,6 +144,16 @@ spec:
       main:
         replicas: 1
         podSpec:
+          initContainers:
+            patch-main-py:
+              enabled: true
+              type: init
+              image:
+                repository: automaticrippingmachine/automatic-ripping-machine
+                tag: 2.23.2
+              command:
+                - python3
+                - /patcher/apply_patch.py
           containers:
             main:
               env:
