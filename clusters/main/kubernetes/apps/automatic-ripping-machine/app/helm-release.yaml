@@ -144,6 +144,17 @@ spec:
             patch-main-py:
               mountPath: /patched
 
+      utils-py-patched:
+        enabled: true
+        type: emptyDir
+        targetSelector:
+          main:
+            main:
+              mountPath: /opt/arm/arm/ripper/utils.py
+              subPath: utils.py
+            patch-main-py:
+              mountPath: /patched-utils
+
     securityContext:
       container:
         privileged: true

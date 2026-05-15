@@ -50,3 +50,25 @@ data:
         f.write(patched)
 
     print(f'Patch applied: {SRC} -> {DST}')
+
+    # Patch utils.py to add -f flag to abcde invocation so old work dirs
+    # are always deleted rather than resumed.
+    UTILS_SRC = '/opt/arm/arm/ripper/utils.py'
+    UTILS_DST = '/patched-utils/utils.py'
+
+    UTILS_OLD = 'cmd = f\'abcde -d "{job.devpath}" -c {abcfile} >> "{os.path.join(job.config.LOGPATH, logfile)}" 2>&1\''
+    UTILS_NEW = 'cmd = f\'abcde -f -d "{job.devpath}" -c {abcfile} >> "{os.path.join(job.config.LOGPATH, logfile)}" 2>&1\''
+
+    with open(UTILS_SRC, 'r') as f:
+        utils_content = f.read()
+
+    if UTILS_OLD not in utils_content:
+        print(f'ERROR: utils.py patch target not found', file=sys.stderr)
+        sys.exit(1)
+
+    utils_patched = utils_content.replace(UTILS_OLD, UTILS_NEW, 1)
+
+    with open(UTILS_DST, 'w') as f:
+        f.write(utils_patched)
+
+    print(f'Patch applied: {UTILS_SRC} -> {UTILS_DST}')
