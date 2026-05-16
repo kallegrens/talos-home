@@ -9,3 +9,4 @@ data:
     OUTPUTTYPE=opus
     OPUSENCOPTS="--bitrate 128"
     CDROM=/dev/optical
+    CDPARANOIA_OPTS="-g /dev/optical-sg"
