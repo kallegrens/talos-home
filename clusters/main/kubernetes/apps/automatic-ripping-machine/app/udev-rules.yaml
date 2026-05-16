@@ -19,25 +19,32 @@ data:
     SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ACTION=="change", ENV{ID_VENDOR}=="MATSHITA", ENV{ID_MODEL}=="BD-MLT_UJ265", ENV{ID_CDROM_MEDIA}=="1", RUN+="/bin/bash /etc/udev/arm-auto-trigger.sh %k"
   arm-auto-trigger.sh: |
     #!/usr/bin/env bash
-    set -u
+    set +u
 
-    device="${1:-${KERNEL:-unknown}}"
+    device="$1"
+    if [ -z "$device" ]; then
+      device="$KERNEL"
+    fi
+    if [ -z "$device" ]; then
+      device="unknown"
+    fi
     log=/home/arm/logs/udev-arm-trigger.log
 
     {
-      echo "=== $(date -Is) udev trigger device=${device} ==="
-      echo "ACTION=${ACTION:-} DEVNAME=${DEVNAME:-} DEVPATH=${DEVPATH:-}"
-      echo "ID_VENDOR=${ID_VENDOR:-} ID_MODEL=${ID_MODEL:-} ID_CDROM_MEDIA=${ID_CDROM_MEDIA:-} ID_CDROM_MEDIA_TRACK_COUNT_AUDIO=${ID_CDROM_MEDIA_TRACK_COUNT_AUDIO:-}"
+      echo "=== $(date -Is) udev trigger device=$device ==="
+      echo "ACTION=$ACTION DEVNAME=$DEVNAME DEVPATH=$DEVPATH"
+      echo "ID_VENDOR=$ID_VENDOR ID_MODEL=$ID_MODEL ID_CDROM_MEDIA=$ID_CDROM_MEDIA ID_CDROM_MEDIA_TRACK_COUNT_AUDIO=$ID_CDROM_MEDIA_TRACK_COUNT_AUDIO"
       ls -l /host-dev/optical /host-dev/optical-sg /dev/optical /dev/optical-sg 2>&1 || true
-    } >> "${log}"
+    } >> "$log"
 
     if /bin/flock -n /tmp/arm-optical.lock /bin/bash -c '
-      echo "lock acquired $(date -Is) for ${1}" >> /home/arm/logs/udev-arm-trigger.log
-      exec /sbin/setuser arm /opt/arm/scripts/docker/docker_arm_wrapper.sh "${1}"
-    ' _ "${device}" >> "${log}" 2>&1; then
-      echo "=== $(date -Is) trigger completed device=${device} ===" >> "${log}"
+      device="$1"
+      echo "lock acquired $(date -Is) for $device" >> /home/arm/logs/udev-arm-trigger.log
+      exec /sbin/setuser arm /opt/arm/scripts/docker/docker_arm_wrapper.sh "$device"
+    ' _ "$device" >> "$log" 2>&1; then
+      echo "=== $(date -Is) trigger completed device=$device ===" >> "$log"
     else
       rc=$?
-      echo "=== $(date -Is) trigger exited rc=${rc} device=${device} ===" >> "${log}"
-      exit "${rc}"
+      echo "=== $(date -Is) trigger exited rc=$rc device=$device ===" >> "$log"
+      exit "$rc"
     fi
