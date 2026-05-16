@@ -57,7 +57,7 @@ data:
     UTILS_DST = '/patched-utils/utils.py'
 
     UTILS_OLD = 'cmd = f\'abcde -d "{job.devpath}" -c {abcfile} >> "{os.path.join(job.config.LOGPATH, logfile)}" 2>&1\''
-    UTILS_NEW = 'cmd = f\'abcde -f -d "{job.devpath}" -c {abcfile} >> "{os.path.join(job.config.LOGPATH, logfile)}" 2>&1\''
+    UTILS_NEW = 'cmd = f\'abcde -f -d /dev/optical -c {abcfile} >> "{os.path.join(job.config.LOGPATH, logfile)}" 2>&1\''
 
     with open(UTILS_SRC, 'r') as f:
         utils_content = f.read()
