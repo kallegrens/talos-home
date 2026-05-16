@@ -164,7 +164,7 @@ spec:
         type: configmap
         objectName: arm-udev-rules
         expandObjectName: false
-        mountPath: /opt/arm/scripts/arm-auto-trigger.sh
+        mountPath: /etc/udev/arm-auto-trigger.sh
         subPath: arm-auto-trigger.sh
 
       main-py-patched:

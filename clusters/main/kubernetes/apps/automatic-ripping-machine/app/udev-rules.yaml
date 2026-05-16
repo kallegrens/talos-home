@@ -16,7 +16,7 @@ data:
   61-docker-arm.rules: |
     # Runs after 60-cdrom_id so ID_CDROM_MEDIA is available.
     # Match the MATSHITA drive by identity because sr numbering is unstable.
-    SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ACTION=="change", ENV{ID_VENDOR}=="MATSHITA", ENV{ID_MODEL}=="BD-MLT_UJ265", ENV{ID_CDROM_MEDIA}=="1", RUN+="/bin/bash /opt/arm/scripts/arm-auto-trigger.sh %k"
+    SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ACTION=="change", ENV{ID_VENDOR}=="MATSHITA", ENV{ID_MODEL}=="BD-MLT_UJ265", ENV{ID_CDROM_MEDIA}=="1", RUN+="/bin/bash /etc/udev/arm-auto-trigger.sh %k"
   arm-auto-trigger.sh: |
     #!/usr/bin/env bash
     set -u
