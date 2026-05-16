@@ -11,5 +11,6 @@ data:
     SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", ACTION=="add|change", RUN+="/bin/sh -c '/bin/chown root:cdrom /dev/optical /dev/cdrom /dev/optical-sg /host-dev/optical /host-dev/cdrom /host-dev/optical-sg 2>/dev/null || true'"
   51-docker-arm.rules: |
     # Shadows /lib/udev/rules.d/51-docker-arm.rules.
-    # Intentionally empty: automatic udev startup is masked until the dynamic
-    # /host-dev optical path is validated with manual UI rips.
+    # Match the MATSHITA drive by identity because sr numbering is unstable.
+    # flock -n prevents duplicate jobs from rapid udev change events on insert.
+    SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", ACTION=="change", ENV{ID_CDROM_MEDIA}=="1", ENV{ID_CDROM_MEDIA_STATE}!="blank", RUN+="/bin/bash -lc 'exec /bin/flock -n /tmp/arm-optical.lock /sbin/setuser arm /opt/arm/scripts/docker/docker_arm_wrapper.sh %k'"
