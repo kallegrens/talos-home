@@ -7,6 +7,13 @@ metadata:
 data:
   52-arm-optical-perms.rules: |
     # Fix permissions on generic-device-plugin device nodes (always root:root).
-    # Runs at cold-plug (add) and on media insert (change) so /dev/optical and
-    # /dev/cdrom become accessible to the arm user (cdrom group).
-    SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ACTION=="add|change", RUN+="/bin/chown root:cdrom /dev/optical /dev/cdrom /dev/optical-sg"
+    # Only match sr0 (MATSHITA USB optical) — sr1 is always Longhorn iSCSI.
+    SUBSYSTEM=="block", KERNEL=="sr0", ACTION=="add|change", RUN+="/bin/chown root:cdrom /dev/optical /dev/cdrom /dev/optical-sg"
+  51-docker-arm.rules: |
+    # Shadows /lib/udev/rules.d/51-docker-arm.rules.
+    # Restricts ARM triggers to sr0 only (not sr1/iSCSI Longhorn volumes).
+    # flock -n prevents duplicate triggers from rapid change events on disc insert:
+    # if ARM is already running for sr0 the second trigger exits immediately
+    # without doing any SCSI probing, preventing concurrent reads that cause
+    # cdparanoia scsi_read ENODEV errors and GB-sized log files.
+    KERNEL=="sr0", ACTION=="change", SUBSYSTEM=="block", ENV{ID_CDROM_MEDIA_STATE}!="blank", RUN+="/bin/bash -c 'exec flock -n /tmp/arm-sr0.lock /sbin/setuser arm /opt/arm/scripts/docker/docker_arm_wrapper.sh sr0'"
