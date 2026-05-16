@@ -11,6 +11,33 @@ data:
     SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", ACTION=="add|change", RUN+="/bin/sh -c '/bin/chown root:cdrom /dev/optical /dev/cdrom /dev/optical-sg /host-dev/optical /host-dev/cdrom /host-dev/optical-sg 2>/dev/null || true'"
   51-docker-arm.rules: |
     # Shadows /lib/udev/rules.d/51-docker-arm.rules.
+    # Intentionally empty: the upstream 51 rule runs before 60-cdrom_id populates
+    # ID_CDROM_MEDIA, so the real trigger lives in 61-docker-arm.rules.
+  61-docker-arm.rules: |
+    # Runs after 60-cdrom_id so ID_CDROM_MEDIA is available.
     # Match the MATSHITA drive by identity because sr numbering is unstable.
-    # flock -n prevents duplicate jobs from rapid udev change events on insert.
-    SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", ACTION=="change", ENV{ID_CDROM_MEDIA}=="1", ENV{ID_CDROM_MEDIA_STATE}!="blank", RUN+="/bin/bash -lc 'exec /bin/flock -n /tmp/arm-optical.lock /sbin/setuser arm /opt/arm/scripts/docker/docker_arm_wrapper.sh %k'"
+    SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ACTION=="change", ENV{ID_VENDOR}=="MATSHITA", ENV{ID_MODEL}=="BD-MLT_UJ265", ENV{ID_CDROM_MEDIA}=="1", RUN+="/bin/bash /opt/arm/scripts/arm-auto-trigger.sh %k"
+  arm-auto-trigger.sh: |
+    #!/usr/bin/env bash
+    set -u
+
+    device="${1:-${KERNEL:-unknown}}"
+    log=/home/arm/logs/udev-arm-trigger.log
+
+    {
+      echo "=== $(date -Is) udev trigger device=${device} ==="
+      echo "ACTION=${ACTION:-} DEVNAME=${DEVNAME:-} DEVPATH=${DEVPATH:-}"
+      echo "ID_VENDOR=${ID_VENDOR:-} ID_MODEL=${ID_MODEL:-} ID_CDROM_MEDIA=${ID_CDROM_MEDIA:-} ID_CDROM_MEDIA_TRACK_COUNT_AUDIO=${ID_CDROM_MEDIA_TRACK_COUNT_AUDIO:-}"
+      ls -l /host-dev/optical /host-dev/optical-sg /dev/optical /dev/optical-sg 2>&1 || true
+    } >> "${log}"
+
+    if /bin/flock -n /tmp/arm-optical.lock /bin/bash -c '
+      echo "lock acquired $(date -Is) for ${1}" >> /home/arm/logs/udev-arm-trigger.log
+      exec /sbin/setuser arm /opt/arm/scripts/docker/docker_arm_wrapper.sh "${1}"
+    ' _ "${device}" >> "${log}" 2>&1; then
+      echo "=== $(date -Is) trigger completed device=${device} ===" >> "${log}"
+    else
+      rc=$?
+      echo "=== $(date -Is) trigger exited rc=${rc} device=${device} ===" >> "${log}"
+      exit "${rc}"
+    fi
