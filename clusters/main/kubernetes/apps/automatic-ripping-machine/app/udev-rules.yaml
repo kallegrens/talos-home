@@ -7,13 +7,9 @@ metadata:
 data:
   52-arm-optical-perms.rules: |
     # Fix permissions on generic-device-plugin device nodes (always root:root).
-    # Only match sr0 (MATSHITA USB optical) — sr1 is always Longhorn iSCSI.
-    SUBSYSTEM=="block", KERNEL=="sr0", ACTION=="add|change", RUN+="/bin/chown root:cdrom /dev/optical /dev/cdrom /dev/optical-sg"
+    # Match the MATSHITA drive by identity because sr numbering is unstable.
+    SUBSYSTEM=="block", KERNEL=="sr[0-9]*", ATTRS{vendor}=="MATSHITA*", ATTRS{model}=="BD-MLT UJ265*", ACTION=="add|change", RUN+="/bin/sh -c '/bin/chown root:cdrom /dev/optical /dev/cdrom /dev/optical-sg /host-dev/optical /host-dev/cdrom /host-dev/optical-sg 2>/dev/null || true'"
   51-docker-arm.rules: |
     # Shadows /lib/udev/rules.d/51-docker-arm.rules.
-    # Restricts ARM triggers to sr0 only (not sr1/iSCSI Longhorn volumes).
-    # flock -n prevents duplicate triggers from rapid change events on disc insert:
-    # if ARM is already running for sr0 the second trigger exits immediately
-    # without doing any SCSI probing, preventing concurrent reads that cause
-    # cdparanoia scsi_read ENODEV errors and GB-sized log files.
-    KERNEL=="sr0", ACTION=="change", SUBSYSTEM=="block", ENV{ID_CDROM_MEDIA_STATE}!="blank", RUN+="/bin/bash -c 'exec flock -n /tmp/arm-sr0.lock /sbin/setuser arm /opt/arm/scripts/docker/docker_arm_wrapper.sh sr0'"
+    # Intentionally empty: automatic udev startup is masked until the dynamic
+    # /host-dev optical path is validated with manual UI rips.

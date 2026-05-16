@@ -107,6 +107,16 @@ spec:
             main: {}
             arm-perms: {}
 
+      host-dev:
+        enabled: true
+        type: hostPath
+        hostPath: /dev
+        hostPathType: Directory
+        mountPath: /host-dev
+        targetSelector:
+          main:
+            main: {}
+
       abcde-conf:
         enabled: true
         type: configmap

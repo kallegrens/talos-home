@@ -8,5 +8,5 @@ data:
   abcde.conf: |
     OUTPUTTYPE=opus
     OPUSENCOPTS="--bitrate 128"
-    CDROM=/dev/optical
-    CDPARANOIA_OPTS="-g /dev/optical-sg"
+    CDROM=/host-dev/optical
+    CDPARANOIA_OPTS="-g /host-dev/optical-sg"
