@@ -68,3 +68,4 @@ when relevant, not in every prompt:
 |---|---|---|
 | Home Assistant | `skills/home-assistant/SKILL.md` | Editing HA config, automations, template sensors |
 | EMHASS | `skills/emhass/SKILL.md` | Editing EMHASS config, MPC optimization, battery control |
+| Automatic Ripping Machine | `skills/automatic-ripping-machine/SKILL.md` | Debugging ARM, optical drive passthrough, udev triggers, or audio CD rips |

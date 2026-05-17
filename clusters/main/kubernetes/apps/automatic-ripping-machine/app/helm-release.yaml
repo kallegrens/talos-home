@@ -167,6 +167,14 @@ spec:
         mountPath: /etc/udev/arm-auto-trigger.sh
         subPath: arm-auto-trigger.sh
 
+      arm-optical-watch:
+        enabled: true
+        type: configmap
+        objectName: arm-udev-rules
+        expandObjectName: false
+        mountPath: /etc/udev/arm-optical-watch.sh
+        subPath: arm-optical-watch.sh
+
       main-py-patched:
         enabled: true
         type: emptyDir
@@ -209,6 +217,12 @@ spec:
                 - /patcher/apply_patch.py
           containers:
             main:
+              command:
+                - /bin/bash
+                - -lc
+                - |
+                  /bin/bash /etc/udev/arm-optical-watch.sh &
+                  exec /sbin/my_init
               env:
                 SKIP_TRANSCODE: "true"
                 RIPMETHOD: "mkv"

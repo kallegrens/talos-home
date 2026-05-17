@@ -30,21 +30,142 @@ data:
     fi
     log=/home/arm/logs/udev-arm-trigger.log
 
+    load_cdrom_env() {
+      local key
+      local value
+
+      if [ ! -e /host-dev/optical ]; then
+        return 0
+      fi
+
+      while IFS='=' read -r key value; do
+        case "$key" in
+          ID_CDROM*)
+            if [ -z "${!key}" ]; then
+              export "$key=$value"
+            fi
+            ;;
+        esac
+      done < <(/lib/udev/cdrom_id --lock-media /host-dev/optical 2>/dev/null || true)
+    }
+
+    mirror_device_node() {
+      local node_type="$1"
+      local source="$2"
+      local dest="$3"
+      local major_hex
+      local minor_hex
+      local major
+      local minor
+
+      major_hex="$(stat -L -c '%t' "$source" 2>/dev/null)" || return 1
+      minor_hex="$(stat -L -c '%T' "$source" 2>/dev/null)" || return 1
+      major=$((16#$major_hex))
+      minor=$((16#$minor_hex))
+
+      rm -f "$dest" 2>/dev/null || true
+      if mknod "$dest" "$node_type" "$major" "$minor" 2>/dev/null; then
+        chown root:cdrom "$dest" 2>/dev/null || true
+        chmod 660 "$dest" 2>/dev/null || true
+      else
+        ln -sfn "$source" "$dest" 2>/dev/null || true
+      fi
+    }
+
+    sync_live_optical_nodes() {
+      local db_mount
+      local run_device
+
+      db_mount="$(python3 -c "import sqlite3; conn = sqlite3.connect('/home/arm/db/arm.db'); row = conn.execute(\"select mount from system_drives where vendor like 'MATSHITA%' and model like 'BD-MLT%' order by id limit 1\").fetchone(); print(row[0] if row and row[0] else '')" 2>/dev/null || true)"
+
+      case "$db_mount" in
+        /dev/*) run_device="${db_mount#/dev/}" ;;
+        *) run_device="sr1" ;;
+      esac
+
+      if [ -z "$run_device" ] || [ "$run_device" = "unknown" ]; then
+        run_device="sr1"
+      fi
+
+      if [ -e /host-dev/optical ]; then
+        for path in "/dev/$run_device" /dev/optical /dev/cdrom; do
+          mirror_device_node b /host-dev/optical "$path" || ln -sfn /host-dev/optical "$path" 2>/dev/null || true
+        done
+      fi
+
+      if [ -e /host-dev/optical-sg ]; then
+        mirror_device_node c /host-dev/optical-sg /dev/optical-sg || ln -sfn /host-dev/optical-sg /dev/optical-sg 2>/dev/null || true
+      fi
+
+      chown -h root:cdrom "/dev/$run_device" /dev/optical /dev/cdrom /dev/optical-sg 2>/dev/null || true
+      printf '%s\n' "$run_device"
+    }
+
+    requested_device="$device"
+    load_cdrom_env
+    run_device="$(sync_live_optical_nodes)"
+
     {
-      echo "=== $(date -Is) udev trigger device=$device ==="
+      echo "=== $(date -Is) udev trigger device=$requested_device run_device=$run_device ==="
       echo "ACTION=$ACTION DEVNAME=$DEVNAME DEVPATH=$DEVPATH"
       echo "ID_VENDOR=$ID_VENDOR ID_MODEL=$ID_MODEL ID_CDROM_MEDIA=$ID_CDROM_MEDIA ID_CDROM_MEDIA_TRACK_COUNT_AUDIO=$ID_CDROM_MEDIA_TRACK_COUNT_AUDIO"
-      ls -l /host-dev/optical /host-dev/optical-sg /dev/optical /dev/optical-sg 2>&1 || true
+      ls -l /host-dev/optical /host-dev/optical-sg /dev/optical /dev/optical-sg "/dev/$run_device" 2>&1 || true
     } >> "$log"
 
     if /bin/flock -n /tmp/arm-optical.lock /bin/bash -c '
       device="$1"
       echo "lock acquired $(date -Is) for $device" >> /home/arm/logs/udev-arm-trigger.log
       exec /sbin/setuser arm /opt/arm/scripts/docker/docker_arm_wrapper.sh "$device"
-    ' _ "$device" >> "$log" 2>&1; then
-      echo "=== $(date -Is) trigger completed device=$device ===" >> "$log"
+    ' _ "$run_device" >> "$log" 2>&1; then
+      echo "=== $(date -Is) trigger completed device=$run_device ===" >> "$log"
     else
       rc=$?
-      echo "=== $(date -Is) trigger exited rc=$rc device=$device ===" >> "$log"
+      echo "=== $(date -Is) trigger exited rc=$rc device=$run_device ===" >> "$log"
       exit "$rc"
     fi
+  arm-optical-watch.sh: |
+    #!/usr/bin/env bash
+    set +u
+
+    log=/home/arm/logs/arm-optical-watch.log
+    state=/tmp/arm-optical-watch.state
+    interval="${ARM_OPTICAL_WATCH_INTERVAL:-10}"
+    first_scan=1
+
+    echo "=== $(date -Is) optical watcher started interval=${interval}s ===" >> "$log"
+
+    while true; do
+      props="$(/lib/udev/cdrom_id --lock-media /host-dev/optical 2>/dev/null || true)"
+
+      if echo "$props" | grep -q '^ID_CDROM_MEDIA=1$'; then
+        target="$(readlink -f /host-dev/optical 2>/dev/null || echo /host-dev/optical)"
+        tracks="$(echo "$props" | awk -F= '/^ID_CDROM_MEDIA_TRACK_COUNT=/ { print $2; exit }')"
+        audio_tracks="$(echo "$props" | awk -F= '/^ID_CDROM_MEDIA_TRACK_COUNT_AUDIO=/ { print $2; exit }')"
+        key="$target:${tracks:-unknown}:${audio_tracks:-unknown}"
+
+        if [ "$(cat "$state" 2>/dev/null)" != "$key" ]; then
+          if [ "$first_scan" = "1" ]; then
+            echo "$(date -Is) media present at watcher startup key=$key; waiting for next media change" >> "$log"
+            echo "$key" > "$state"
+          elif ps -eo args | grep -E '[m]ain.py -d|[a]bcde|[c]dparanoia|[o]pusenc|[d]ocker_arm_wrapper' >/dev/null 2>&1; then
+            echo "$(date -Is) media present key=$key but rip is already active; marking handled" >> "$log"
+            echo "$key" > "$state"
+          else
+            echo "$key" > "$state"
+            echo "$(date -Is) media detected key=$key; launching ARM trigger" >> "$log"
+            device="$(basename "$target")"
+            /bin/bash /etc/udev/arm-auto-trigger.sh "$device" >> "$log" 2>&1
+            rc=$?
+            echo "$(date -Is) ARM trigger returned rc=$rc key=$key" >> "$log"
+          fi
+        fi
+      else
+        if [ -s "$state" ]; then
+          echo "$(date -Is) media absent; resetting watcher state" >> "$log"
+        fi
+        rm -f "$state"
+      fi
+
+      first_scan=0
+      sleep "$interval"
+    done
