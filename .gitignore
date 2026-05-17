@@ -23,4 +23,4 @@ resources/
 *.pdf
 .env
 logs/
-scripts/
+/scripts/
