@@ -27,3 +27,4 @@ resources:
   - onecli/ks.yaml
   - vikunja-db/ks.yaml
   - vikunja/ks.yaml
+  - audiobookshelf/ks.yaml
