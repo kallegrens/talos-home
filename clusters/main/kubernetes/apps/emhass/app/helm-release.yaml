@@ -36,10 +36,9 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/kallegrens/emhass
-              # Auto-rebased build from fork with PR #745 (Solcast Rate Limit Fix)
-              tag: master-8757d2a
-              pullPolicy: IfNotPresent # Immutable tag — no need to always re-pull
+              repository: ghcr.io/davidusb-geek/emhass
+              tag: v0.17.3
+              pullPolicy: IfNotPresent
             env:
               TZ: Europe/Stockholm
             probes:
