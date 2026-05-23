@@ -102,7 +102,7 @@ rest_command:
     content_type: "application/json"
     timeout: 300
     payload: >-
-      {%- set curr_soc = states('sensor.goodwe_battery_state_of_charge') | float(0) / 100 -%}
+      {%- set curr_soc = states('sensor.emhass_soc_for_mpc') | float(0) / 100 -%}
       {%- set snow = is_state('input_boolean.solar_panels_snow_covered', 'on') -%}
       {%- set bms_no_discharge = is_state('binary_sensor.bms_discharge_disabled', 'on') -%}
       {%- set bms_no_charge = is_state('binary_sensor.bms_charge_disabled', 'on') -%}
@@ -154,7 +154,6 @@ rest_command:
       {%- endif -%}
       {%- set ev_charging = is_state('sensor.laddare_vid_husknuten_status', 'charging') -%}
       {
-        "weather_forecast_cache_only": true,
         "soc_init": {{ curr_soc }},
         "soc_final": {{ curr_soc }},
         "prediction_horizon": {{ horizon }},
@@ -183,13 +182,6 @@ rest_command:
         {%- endif %}
       }
 
-  emhass_weather_cache:
-    url: "http://emhass.emhass.svc.cluster.local:5000/action/weather-forecast-cache"
-    method: POST
-    content_type: "application/json"
-    payload: "{}"
-    timeout: 60
-
   emhass_publish_data:
     url: "http://emhass.emhass.svc.cluster.local:5000/action/publish-data"
     method: POST
@@ -201,6 +193,25 @@ rest_command:
 # Template sensors
 # ---------------------------------------------------------------------------
 template:
+  - sensor:
+      - name: "EMHASS SOC For MPC"
+        unique_id: emhass_soc_for_mpc
+        unit_of_measurement: "%"
+        state: >-
+          {% set live_soc = states('sensor.goodwe_battery_state_of_charge') %}
+          {% if live_soc | is_number %}
+            {{ live_soc | float(0) | round(2) }}
+          {% else %}
+            {% set forecast_soc = states('sensor.soc_batt_forecast') %}
+            {% set hb_ts = state_attr('input_datetime.emhass_last_publish', 'timestamp') %}
+            {% set forecast_fresh = hb_ts is not none and (as_timestamp(now()) - hb_ts) <= 1200 %}
+            {% if forecast_fresh and forecast_soc | is_number %}
+              {{ forecast_soc | float(0) | round(2) }}
+            {% else %}
+              unknown
+            {% endif %}
+          {% endif %}
+
   # House consumption excluding deferrable loads (EV charger).
   # Easee reports power in kW; convert to W so it graphs alongside GoodWe
   - sensor:

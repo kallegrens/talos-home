@@ -62,6 +62,9 @@
     resilience measure: EMHASS's continual_publish background
     thread can crash silently, leaving sensors stale while MPC
     keeps running. The explicit publish ensures sensor freshness.
+    Falls back to the last published SOC forecast for up to 20 min
+    when GoodWe SOC telemetry is briefly unavailable, so EV
+    scheduling does not stall on short inverter outages.
     4 min chosen because it is coprime with the 15-min price slot
     boundary (GCD=1), preventing systematic alignment flip-flop,
     while giving faster SOC feedback than the previous 7-min cycle.
@@ -75,7 +78,7 @@
     - condition: template
       value_template: >-
         {{ (state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_today') | default([], true) | length > 0)
-           and states('sensor.goodwe_battery_state_of_charge') | is_number }}
+           and states('sensor.emhass_soc_for_mpc') | is_number }}
   actions:
     - action: rest_command.emhass_mpc_optim
     - delay:
@@ -86,26 +89,6 @@
         entity_id: input_datetime.emhass_last_publish
       data:
         datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-  mode: single
-
-- id: "1770700000007"
-  alias: EMHASS PV Forecast Cache
-  description: >-
-    Caches PV weather forecast 4x daily so MPC runs reuse cached data
-    instead of hitting Solcast every 4 min. 1 roof array = 4 API
-    calls/day out of the 10 free-tier limit. First call at 05:00
-    ensures the cache is warm before the overnight cache expires.
-  triggers:
-    - at: "05:00:00"
-      trigger: time
-    - at: "12:00:00"
-      trigger: time
-    - at: "18:00:00"
-      trigger: time
-    - at: "21:00:00"
-      trigger: time
-  actions:
-    - action: rest_command.emhass_weather_cache
   mode: single
 
 # ===========================================================================
@@ -1152,6 +1135,10 @@
     - condition: template
       value_template: >-
         {{ states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] }}
+    - condition: template
+      value_template: >-
+        {{ (state_attr('sensor.nordpool_kwh_se3_sek_3_10_0', 'raw_today') | default([], true) | length > 0)
+           and states('sensor.emhass_soc_for_mpc') | is_number }}
   actions:
     - action: rest_command.emhass_mpc_optim
     - delay:

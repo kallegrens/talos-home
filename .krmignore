@@ -2,6 +2,6 @@
 
 # Home Assistant config files (not Kubernetes manifests)
 
-clusters/main/kubernetes/apps/home-assistant/automations.yaml
-clusters/main/kubernetes/apps/home-assistant/configuration.yaml
-clusters/main/kubernetes/apps/home-assistant/dashboards/ev-charging.yaml
+clusters/main/kubernetes/apps/home-assistant/app/automations.yaml
+clusters/main/kubernetes/apps/home-assistant/app/configuration.yaml
+clusters/main/kubernetes/apps/home-assistant/app/dashboards/ev-charging.yaml

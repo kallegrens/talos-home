@@ -86,6 +86,30 @@ spec:
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
 
+      repo-configuration:
+        enabled: true
+        type: configmap
+        objectName: home-assistant-config-files
+        expandObjectName: false
+        mountPath: /config/configuration.yaml
+        subPath: configuration.yaml
+
+      repo-automations:
+        enabled: true
+        type: configmap
+        objectName: home-assistant-config-files
+        expandObjectName: false
+        mountPath: /config/automations.yaml
+        subPath: automations.yaml
+
+      repo-ev-dashboard:
+        enabled: true
+        type: configmap
+        objectName: home-assistant-config-files
+        expandObjectName: false
+        mountPath: /config/dashboards/ev-charging.yaml
+        subPath: ev-charging.yaml
+
     cnpg:
       main:
         cluster:
