@@ -35,7 +35,7 @@ spec:
       rebalance:
         type: cronjob
         cronjob:
-          schedule: "*/15 9-17 * * 1-5"
+          schedule: "*/5 9-23 * * *"
           timeZone: Europe/Stockholm
           concurrencyPolicy: Forbid
           startingDeadlineSeconds: 900
