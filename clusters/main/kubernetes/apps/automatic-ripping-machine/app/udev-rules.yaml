@@ -41,7 +41,7 @@ data:
       while IFS='=' read -r key value; do
         case "$key" in
           ID_CDROM*)
-            if [ -z "${!key}" ]; then
+            if [ -z "$${!key}" ]; then
               export "$key=$value"
             fi
             ;;
@@ -79,7 +79,7 @@ data:
       db_mount="$(python3 -c "import sqlite3; conn = sqlite3.connect('/home/arm/db/arm.db'); row = conn.execute(\"select mount from system_drives where vendor like 'MATSHITA%' and model like 'BD-MLT%' order by id limit 1\").fetchone(); print(row[0] if row and row[0] else '')" 2>/dev/null || true)"
 
       case "$db_mount" in
-        /dev/*) run_device="${db_mount#/dev/}" ;;
+        /dev/*) run_device="$${db_mount#/dev/}" ;;
         *) run_device="sr1" ;;
       esac
 
@@ -129,10 +129,10 @@ data:
 
     log=/home/arm/logs/arm-optical-watch.log
     state=/tmp/arm-optical-watch.state
-    interval="${ARM_OPTICAL_WATCH_INTERVAL:-10}"
+    interval="$${ARM_OPTICAL_WATCH_INTERVAL:-10}"
     first_scan=1
 
-    echo "=== $(date -Is) optical watcher started interval=${interval}s ===" >> "$log"
+    echo "=== $(date -Is) optical watcher started interval=$${interval}s ===" >> "$log"
 
     while true; do
       props="$(/lib/udev/cdrom_id --lock-media /host-dev/optical 2>/dev/null || true)"
@@ -141,7 +141,7 @@ data:
         target="$(readlink -f /host-dev/optical 2>/dev/null || echo /host-dev/optical)"
         tracks="$(echo "$props" | awk -F= '/^ID_CDROM_MEDIA_TRACK_COUNT=/ { print $2; exit }')"
         audio_tracks="$(echo "$props" | awk -F= '/^ID_CDROM_MEDIA_TRACK_COUNT_AUDIO=/ { print $2; exit }')"
-        key="$target:${tracks:-unknown}:${audio_tracks:-unknown}"
+        key="$target:$${tracks:-unknown}:$${audio_tracks:-unknown}"
 
         if [ "$(cat "$state" 2>/dev/null)" != "$key" ]; then
           if [ "$first_scan" = "1" ]; then
