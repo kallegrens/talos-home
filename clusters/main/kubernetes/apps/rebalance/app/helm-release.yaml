@@ -1,0 +1,80 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: rebalance
+  namespace: rebalance
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: app-template
+      version: 5.0.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      interval: 15m
+  timeout: 10m
+  maxHistory: 3
+  driftDetection:
+    mode: warn
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    controllers:
+      rebalance:
+        type: cronjob
+        cronjob:
+          schedule: "*/15 9-17 * * 1-5"
+          timeZone: Europe/Stockholm
+          concurrencyPolicy: Forbid
+          startingDeadlineSeconds: 900
+          successfulJobsHistory: 1
+          failedJobsHistory: 1
+          backoffLimit: 1
+          activeDeadlineSeconds: 600
+          ttlSecondsAfterFinished: 86400
+        containers:
+          app:
+            image:
+              repository: ghcr.io/kallegrens/rebalance
+              tag: v0.5.0
+              pullPolicy: IfNotPresent
+            env:
+              TZ: Europe/Stockholm
+              REBALANCE_APPRISE_CONFIG: /config/apprise.conf
+              REBALANCE_NOTIFY_TRIGGER_TAG: rebalance-trigger
+              REBALANCE_NOTIFY_FAILURE_TAG: rebalance-failure
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+    persistence:
+      portfolio:
+        type: secret
+        name: rebalance-portfolio
+        globalMounts:
+          - path: /config/portfolio.json
+            subPath: portfolio.json
+            readOnly: true
+      apprise:
+        type: secret
+        name: rebalance-apprise
+        globalMounts:
+          - path: /config/apprise.conf
+            subPath: apprise.conf
+            readOnly: true

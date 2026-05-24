@@ -23,6 +23,7 @@ resources:
   - paperless-ngx/ks.yaml
   - home-assistant/ks.yaml
   - emhass/ks.yaml
+  - rebalance/ks.yaml
   - onecli-db/ks.yaml
   - onecli/ks.yaml
   - vikunja-db/ks.yaml
