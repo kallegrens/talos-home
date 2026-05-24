@@ -48,7 +48,7 @@ spec:
           app:
             image:
               repository: ghcr.io/kallegrens/rebalance
-              tag: v0.5.0
+              tag: v0.5.1
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Stockholm
