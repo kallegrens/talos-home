@@ -38,7 +38,7 @@ spec:
     image:
       repository: docker.io/homeassistant/home-assistant
       pullPolicy: IfNotPresent
-      tag: 2026.6.2@sha256:b82fab7973fa1ba5eb69a8aaab3a830d56d986d495d894faf0ee969ad27839a6
+      tag: 2026.6.4@sha256:adb3341e31e03e0048e60d8c1cf952e118a381ae258bb921d3da12a3b27bf0c2
 
     workload:
       main:
