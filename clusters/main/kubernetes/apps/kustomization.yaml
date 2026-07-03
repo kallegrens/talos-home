@@ -10,7 +10,6 @@ resources:
   - tailscale/ks.yaml
   - influxdb/ks.yaml
   - jellyfin/ks.yaml
-  - plex/ks.yaml
   - syncthing/ks.yaml
   - ceevee-webserver/ks.yaml
   - switch-external-service/ks.yaml
