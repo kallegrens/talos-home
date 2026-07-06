@@ -211,7 +211,7 @@ spec:
               type: init
               image:
                 repository: automaticrippingmachine/automatic-ripping-machine
-                tag: 2.23.3
+                tag: 2.23.4
               command:
                 - python3
                 - /patcher/apply_patch.py
