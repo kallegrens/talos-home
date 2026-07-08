@@ -42,8 +42,8 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/kallegrens/vikunja
-              tag: fix-caldav-0129
+              repository: ghcr.io/go-vikunja/vikunja
+              tag: pr-3132
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Stockholm
