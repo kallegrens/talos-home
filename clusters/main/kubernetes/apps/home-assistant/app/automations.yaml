@@ -976,6 +976,7 @@
 
 - id: "1770700000018"
   alias: EV Charge - Sync Car Target SOC
+  initial_state: false
   description: >-
     When the user changes ev_target_soc in the dashboard, push the
     value to the VW ID.4's battery_target_charge_level. The car
@@ -1250,6 +1251,7 @@
 # ---------------------------------------------------------------------------
 - id: "1770700000030"
   alias: VW Cabin - Sync Departure Timer
+  initial_state: false
   description: >-
     Syncs VW AC departure timer slot 3 with input_datetime.ev_ready_by
     so the cabin is pre-conditioned before the EV charge deadline.
