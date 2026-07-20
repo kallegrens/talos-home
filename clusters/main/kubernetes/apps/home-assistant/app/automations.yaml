@@ -1006,17 +1006,15 @@
         # the real target — EMHASS publishes p_def=0 at the exact SOC.
         car_target: "{{ [100, [50, (((ha_target / 10) | round(0, 'ceil')) | int * 10)] | max] | min }}"
         need_care_off: "{{ car_target | int > 80 }}"
-    # Notification FIRST — the VW cloud API may fail (429 rate-limit)
-    # and the VW Group Connect integration surfaces the new entity IDs
-    # HA's continue_on_error. By notifying first, the user always
-    # sees what was intended regardless of VW cloud flakiness.
+    # Notification FIRST — lets the user know the requested EV target
+    # is being applied before the entity writes happen.
     - action: persistent_notification.create
       data:
-        title: "🔋 Syncing car charge target"
+        title: "🔋 Updating EV charge target"
         message: >-
-          HA target: {{ ha_target | int }}% → Car target: {{ car_target }}%.
+          HA target: {{ ha_target | int }}% → Applied target: {{ car_target }}%.
           Battery care mode: {{ 'OFF' if need_care_off else 'ON' }}.
-          Sending to VW cloud…
+          Updating EV controls…
         notification_id: ev_car_target_sync
     # --- Battery care mode ---
     # Always kept OFF so the car accepts charge to 100%. The turn-off
