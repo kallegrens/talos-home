@@ -890,7 +890,7 @@
                 phase_mode: 3_phase
               continue_on_error: true
             - delay:
-              seconds: 3
+                seconds: 3
             # Resume FIRST if not already charging. The resume command
             # resets the dynamic limit to 32A, so we must send it
             # before set_charger_dynamic_limit, not after.
@@ -925,7 +925,7 @@
                 phase_mode: 1_phase
               continue_on_error: true
             - delay:
-              seconds: 3
+                seconds: 3
             # Resume FIRST if not already charging. The resume command
             # resets the dynamic limit to 32A, so we must send it
             # before set_charger_dynamic_limit, not after.
