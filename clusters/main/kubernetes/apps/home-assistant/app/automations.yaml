@@ -489,7 +489,7 @@
   conditions: []
   actions:
     - variables:
-        cur: "{{ states('sensor.wvgzzze2znp061751_battery_level') | float(-1) }}"
+        cur: "{{ states('sensor.driveway_volkswagen_id4_battery_level') | float(-1) }}"
         tgt: "{{ states('input_number.ev_target_soc') | float(80) }}"
         ready_ts: "{{ state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) }}"
         now_ts: "{{ as_timestamp(now()) }}"
@@ -546,7 +546,7 @@
         {{ states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] }}
     - condition: template
       value_template: >-
-        {% set ev_soc = states('sensor.wvgzzze2znp061751_battery_level') | float(-1) %}
+        {% set ev_soc = states('sensor.driveway_volkswagen_id4_battery_level') | float(-1) %}
         {% set ev_target = states('input_number.ev_target_soc') | float(80) %}
         {% set ev_battery_kwh = 77 %}
         {% set ev_charge_kw = 11.04 %}
@@ -559,7 +559,7 @@
         {{ ev_soc >= 0 and ev_soc < ev_target and slots_left > 0 and hours_needed > hours_available }}
   actions:
     - variables:
-        ev_soc: "{{ states('sensor.wvgzzze2znp061751_battery_level') | float(0) }}"
+        ev_soc: "{{ states('sensor.driveway_volkswagen_id4_battery_level') | float(0) }}"
         ev_target: "{{ states('input_number.ev_target_soc') | float(80) }}"
         ev_battery_kwh: 77
         ev_charge_kw: 11.04
@@ -760,18 +760,18 @@
     stays active so charging resumes when you plug back in.
   triggers:
     - trigger: state
-      entity_id: sensor.wvgzzze2znp061751_battery_level
+      entity_id: sensor.driveway_volkswagen_id4_battery_level
   conditions:
     - condition: state
       entity_id: input_boolean.ev_charge_requested
       state: "on"
     - condition: template
       value_template: >-
-        {{ states('sensor.wvgzzze2znp061751_battery_level') | float(0)
+        {{ states('sensor.driveway_volkswagen_id4_battery_level') | float(0)
            >= states('input_number.ev_target_soc') | float(80) }}
   actions:
     - variables:
-        ev_soc: "{{ states('sensor.wvgzzze2znp061751_battery_level') | float(0) }}"
+        ev_soc: "{{ states('sensor.driveway_volkswagen_id4_battery_level') | float(0) }}"
         ev_target: "{{ states('input_number.ev_target_soc') | float(80) }}"
         easee_device_id: "634339e1d534267196267f3613120636"
     - action: input_boolean.turn_off
@@ -859,12 +859,8 @@
   conditions:
     # Car must be plugged in
     - condition: state
-      entity_id: binary_sensor.wvgzzze2znp061751_charging_cable_connected
+      entity_id: binary_sensor.driveway_volkswagen_id4_charging_cable_connected
       state: "on"
-    # Heat pump compressor must be off (compressor gets priority)
-    - condition: state
-      entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
-      state: "off"
     # EMHASS must not be actively commanding charge right now
     - condition: template
       value_template: >-
@@ -894,13 +890,7 @@
                 phase_mode: 3_phase
               continue_on_error: true
             - delay:
-                seconds: 3
-            # Re-check compressor after delay — if it turned on during
-            # the 3s wait, abort. set_charger_dynamic_limit implicitly
-            # resumes a paused Easee, so we must not send it.
-            - condition: state
-              entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
-              state: "off"
+              seconds: 3
             # Resume FIRST if not already charging. The resume command
             # resets the dynamic limit to 32A, so we must send it
             # before set_charger_dynamic_limit, not after.
@@ -935,13 +925,7 @@
                 phase_mode: 1_phase
               continue_on_error: true
             - delay:
-                seconds: 3
-            # Re-check compressor after delay — if it turned on during
-            # the 3s wait, abort. set_charger_dynamic_limit implicitly
-            # resumes a paused Easee, so we must not send it.
-            - condition: state
-              entity_id: binary_sensor.lavendelgangen_3_compr_operational_status
-              state: "off"
+              seconds: 3
             # Resume FIRST if not already charging. The resume command
             # resets the dynamic limit to 32A, so we must send it
             # before set_charger_dynamic_limit, not after.
@@ -1002,10 +986,9 @@
     If the target exceeds 80%, battery_care_mode must be turned off
     because it hard-caps charging at 80%. When target is ≤ 80%,
     battery_care_mode is turned back on to preserve battery health.
-    Note: The volkswagencarnet integration raises non-HomeAssistantError
-    exceptions on API failure (429 rate-limit), which bypasses HA's
-    continue_on_error. A shell_command wrapper catches these so the
-    automation always completes.
+    The VW Group Connect integration exposes the vehicle state used
+    here, so the automation now writes directly to the entity-based
+    timer and charge-target controls.
   triggers:
     - trigger: state
       entity_id: input_number.ev_target_soc
@@ -1023,7 +1006,7 @@
         car_target: "{{ [100, [50, (((ha_target / 10) | round(0, 'ceil')) | int * 10)] | max] | min }}"
         need_care_off: "{{ car_target | int > 80 }}"
     # Notification FIRST — the VW cloud API may fail (429 rate-limit)
-    # and the volkswagencarnet integration raises errors that bypass
+    # and the VW Group Connect integration surfaces the new entity IDs
     # HA's continue_on_error. By notifying first, the user always
     # sees what was intended regardless of VW cloud flakiness.
     - action: persistent_notification.create
@@ -1041,17 +1024,17 @@
     # because solar surplus charging should fill to 100%.)
     - if:
         - condition: template
-          value_template: "{{ is_state('switch.wvgzzze2znp061751_battery_care_mode', 'on') }}"
+          value_template: "{{ is_state('switch.driveway_volkswagen_id4_battery_care', 'on') }}"
       then:
         - action: switch.turn_off
           target:
-            entity_id: switch.wvgzzze2znp061751_battery_care_mode
+            entity_id: switch.driveway_volkswagen_id4_battery_care
     - delay:
         seconds: 5
     # --- Set the car's charge target ---
     - action: number.set_value
       target:
-        entity_id: number.wvgzzze2znp061751_battery_target_charge_level
+        entity_id: number.driveway_volkswagen_id4_charge_target
       data:
         value: "{{ car_target }}"
   mode: restart
@@ -1062,6 +1045,7 @@
 
 - id: "1770700000016"
   alias: EV Charge - Heat Pump Preempt
+  initial_state: false
   description: >-
     Heat pump compressor always gets priority over EV charging.
     When the compressor starts, immediately pause the Easee charger
@@ -1118,6 +1102,7 @@
 
 - id: "1770700000017"
   alias: EV Charge - Heat Pump Release MPC
+  initial_state: false
   description: >-
     When the heat pump compressor stops, trigger an immediate MPC
     re-evaluation so EMHASS can reschedule EV charging without
@@ -1283,27 +1268,19 @@
               entity_id: input_boolean.ev_charge_requested
               state: "on"
           sequence:
-            - action: volkswagencarnet.update_schedule
+            - action: switch.turn_on
+              target:
+                entity_id: switch.driveway_volkswagen_id4_departure_timer_3
+            - action: time.set_value
+              target:
+                entity_id: time.driveway_volkswagen_id4_departure_timer_3_time
               data:
-                device_id: "863e6f6fdaa5710678e596183d8f23c0"
-                vehicle_series: "ID. Series"
-                timer_id: 2
-                timer_type: "AC Departure Timer"
-                enabled: true
-                frequency: "single"
-                departure_datetime: >-
-                  {{ states('input_datetime.ev_ready_by') }}
+                time: >-
+                  {{ states('input_datetime.ev_ready_by')[11:16] }}
       default:
-        - action: volkswagencarnet.update_schedule
-          data:
-            device_id: "863e6f6fdaa5710678e596183d8f23c0"
-            vehicle_series: "ID. Series"
-            timer_id: 2
-            timer_type: "AC Departure Timer"
-            enabled: false
-            frequency: "single"
-            departure_datetime: >-
-              {{ states('input_datetime.ev_ready_by') }}
+        - action: switch.turn_off
+          target:
+            entity_id: switch.driveway_volkswagen_id4_departure_timer_3
   mode: single
 
 # ===========================================================================

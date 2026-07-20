@@ -123,9 +123,9 @@ rest_command:
       {%- endfor -%}
       {%- set horizon = [sell_dict.d | length, max_horizon_slots] | min -%}
       {%- set ev_requested = is_state('input_boolean.ev_charge_requested', 'on') -%}
-      {%- set ev_home = is_state('device_tracker.vw_id_4_position', 'home') -%}
+      {%- set ev_home = is_state('device_tracker.driveway_volkswagen_id4_location', 'home') -%}
       {%- set ev_plugged = states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] -%}
-      {%- set ev_soc_raw = states('sensor.wvgzzze2znp061751_battery_level') -%}
+      {%- set ev_soc_raw = states('sensor.driveway_volkswagen_id4_battery_level') -%}
       {%- set ev_soc = ev_soc_raw | float(-1) -%}
       {%- set ev_target = states('input_number.ev_target_soc') | float(80) -%}
       {%- set ev_battery_kwh = 77 -%}
@@ -546,10 +546,10 @@ template:
           - input_boolean.ev_charge_requested
           - sensor.laddare_vid_husknuten_status
           - sensor.laddare_vid_husknuten_power
-          - sensor.wvgzzze2znp061751_battery_level
+          - sensor.driveway_volkswagen_id4_battery_level
           - input_number.ev_target_soc
           - input_datetime.ev_ready_by
-          - device_tracker.vw_id_4_position
+          - device_tracker.driveway_volkswagen_id4_location
     sensor:
       - name: "EV Plan Status"
         unique_id: ev_plan_status
@@ -566,9 +566,9 @@ template:
         state: >-
           {% set requested = is_state('input_boolean.ev_charge_requested', 'on') %}
           {% set charger = states('sensor.laddare_vid_husknuten_status') %}
-          {% set soc = states('sensor.wvgzzze2znp061751_battery_level') | float(-1) %}
+          {% set soc = states('sensor.driveway_volkswagen_id4_battery_level') | float(-1) %}
           {% set target = states('input_number.ev_target_soc') | float(80) %}
-          {% set pos = states('device_tracker.vw_id_4_position') %}
+          {% set pos = states('device_tracker.driveway_volkswagen_id4_location') %}
           {% set home = pos in ['home', 'unknown', 'unavailable'] %}
           {% set plugged = charger in ['awaiting_start', 'charging', 'completed'] %}
           {% if not requested %}
@@ -593,7 +593,7 @@ template:
         state_class: measurement
         icon: mdi:progress-check
         state: >-
-          {% set soc = states('sensor.wvgzzze2znp061751_battery_level') | float(0) %}
+          {% set soc = states('sensor.driveway_volkswagen_id4_battery_level') | float(0) %}
           {% set target = states('input_number.ev_target_soc') | float(0) %}
           {% if target <= 0 %}
             0
@@ -626,7 +626,7 @@ template:
         device_class: energy
         icon: mdi:lightning-bolt
         state: >-
-          {% set soc = states('sensor.wvgzzze2znp061751_battery_level') | float(0) %}
+          {% set soc = states('sensor.driveway_volkswagen_id4_battery_level') | float(0) %}
           {% set target = states('input_number.ev_target_soc') | float(80) %}
           {% set battery_kwh = 77 %}
           {% set overhead = 1.05 %}
