@@ -180,7 +180,6 @@ rest_command:
           {%- endfor -%}
           ,"pv_power_forecast": {{ ns.pv | tojson }}
         {%- endif %}
-      }
 
   emhass_publish_data:
     url: "http://emhass.emhass.svc.cluster.local:5000/action/publish-data"
@@ -210,6 +209,22 @@ template:
             {% else %}
               unknown
             {% endif %}
+          {% endif %}
+
+  # Thermia Legend 10 compatibility helper.
+  # The upstream API currently exposes DHW as cooling_operational_status.
+  # If a future hot_water_operational_status entity appears, prefer it.
+  - binary_sensor:
+      - name: "Thermia DHW Active"
+        unique_id: thermia_dhw_active
+        icon: mdi:water-boiler
+        state: >-
+          {% set hot_water_entity = 'binary_sensor.lavendelgangen_3_hot_water_operational_status' %}
+          {% set hot_water_state = states(hot_water_entity) %}
+          {% if hot_water_state not in ['unknown', 'unavailable'] %}
+            {{ hot_water_state == 'on' }}
+          {% else %}
+            {{ is_state('binary_sensor.lavendelgangen_3_cooling_operational_status', 'on') }}
           {% endif %}
 
   # House consumption excluding deferrable loads (EV charger).
@@ -251,7 +266,7 @@ template:
         state: >-
           {% set comp = is_state('binary_sensor.lavendelgangen_3_compr_operational_status', 'on') %}
           {% set heating = is_state('binary_sensor.lavendelgangen_3_heating_operational_status', 'on') %}
-          {% set dhw = is_state('binary_sensor.lavendelgangen_3_cooling_operational_status', 'on') %}
+          {% set dhw = is_state('binary_sensor.thermia_dhw_active', 'on') %}
           {% set brine = is_state('binary_sensor.lavendelgangen_3_brinepump_operational_status', 'on') %}
           {% set rad = is_state('binary_sensor.lavendelgangen_3_radiatorpump_operational_status', 'on') %}
           {% set t_out = states('sensor.lavendelgangen_3_outdoor_temperature') | float(0) %}
@@ -273,7 +288,7 @@ template:
         icon: mdi:water-boiler
         state: >-
           {% set comp = is_state('binary_sensor.lavendelgangen_3_compr_operational_status', 'on') %}
-          {% set dhw = is_state('binary_sensor.lavendelgangen_3_cooling_operational_status', 'on') %}
+          {% set dhw = is_state('binary_sensor.thermia_dhw_active', 'on') %}
           {% set brine = is_state('binary_sensor.lavendelgangen_3_brinepump_operational_status', 'on') %}
           {% set aux3 = is_state('binary_sensor.lavendelgangen_3_3kw_power_status', 'on') %}
           {% set aux6 = is_state('binary_sensor.lavendelgangen_3_6kw_power_status', 'on') %}
@@ -695,7 +710,7 @@ sensor:
     unique_id: hp_heating_energy
     unit_prefix: k
     unit_time: h
-    method: trapezoidal
+    method: left
 
   - platform: integration
     source: sensor.hp_hot_water_power
@@ -703,7 +718,7 @@ sensor:
     unique_id: hp_hot_water_energy
     unit_prefix: k
     unit_time: h
-    method: trapezoidal
+    method: left
 
 http:
   use_x_forwarded_for: true
