@@ -180,6 +180,7 @@ rest_command:
           {%- endfor -%}
           ,"pv_power_forecast": {{ ns.pv | tojson }}
         {%- endif %}
+      }
 
   emhass_publish_data:
     url: "http://emhass.emhass.svc.cluster.local:5000/action/publish-data"
