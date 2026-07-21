@@ -69,7 +69,7 @@ input_number:
     name: EMHASS consecutive idle count
     icon: mdi:counter
     min: 0
-    max: 100
+    max: 99999
     step: 1
     initial: 0
     mode: box
