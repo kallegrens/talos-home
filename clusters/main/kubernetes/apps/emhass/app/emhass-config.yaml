@@ -7,7 +7,7 @@ metadata:
 data:
   config.json: |
     {
-      "logging_level": "DEBUG",
+      "logging_level": "INFO",
       "costfun": "profit",
       "optimization_time_step": 15,
       "historic_days_to_retrieve": 90,
