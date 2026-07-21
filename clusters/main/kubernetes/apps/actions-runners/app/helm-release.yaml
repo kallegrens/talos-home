@@ -83,7 +83,7 @@ spec:
                 value: "true"
               - name: ACTIONS_RUNNER_HOOK_DEBUG
                 value: "true"
-            image: ghcr.io/actions/actions-runner:2.335.1
+            image: ghcr.io/actions/actions-runner:2.336.0
             imagePullPolicy: IfNotPresent
             resources:
               requests:
