@@ -43,7 +43,7 @@ spec:
           app:
             image:
               repository: ghcr.io/onecli/onecli
-              tag: 1.42.0@sha256:8d4a3300e915259a2fcff13614ecd7394bfd35c75d6a64d69f28a28dd23f30fe
+              tag: 1.43.0@sha256:98b5e13c4f1c1d0512081e35e5c9b8448c49c4b8cf413a13ce096ca1bb4857c4
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Stockholm
