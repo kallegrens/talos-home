@@ -6,8 +6,7 @@ views:
     type: sections
     max_columns: 2
     sections:
-      # ── Control ─────────────────────────────────────────────
-      - title: Control
+      - title: Charge Request
         cards:
           - type: tile
             entity: input_boolean.ev_charge_requested
@@ -74,7 +73,21 @@ views:
             name: Plan Status
             color: primary
 
-      # ── Cabin ───────────────────────────────────────────────
+      - title: EVCC Overview
+        cards:
+          # Requires the HACS ha-evcc integration and hass-evcc-card resource.
+          # This is a read/visualisation card; EMHASS remains the mode owner.
+          - type: custom:evcc-card
+            mode: flow
+            title: Energy Flow
+            size: large
+            site_details: collapsed
+
+          - type: custom:evcc-card
+            mode: stats
+            title: Charging Statistics
+            stats_period: month
+
       - title: Cabin
         cards:
           - type: tile
@@ -97,11 +110,10 @@ views:
             tap_action:
               action: toggle
 
-      # ── Live Status ─────────────────────────────────────────
       - title: Live Status
         cards:
           - type: tile
-            entity: sensor.driveway_volkswagen_id4_battery_level
+            entity: sensor.evcc_loadpoint_1_soc
             name: Car SOC
             icon: mdi:car-battery
             color: green
@@ -122,54 +134,57 @@ views:
             color: cyan
 
           - type: tile
-            entity: sensor.laddare_vid_husknuten_power
+            entity: sensor.evcc_loadpoint_1_power
             name: Charger Power
             icon: mdi:flash
             color: orange
 
           - type: tile
-            entity: sensor.laddare_vid_husknuten_status
-            name: Charger Status
-            icon: mdi:ev-plug-type2
+            entity: sensor.evcc_loadpoint_1_mode
+            name: EVCC Mode
+            icon: mdi:state-machine
+            color: primary
+
+          - type: tile
+            entity: sensor.evcc_loadpoint_1_charging
+            name: Charging
+            icon: mdi:ev-station
+
+          - type: tile
+            entity: sensor.evcc_loadpoint_1_vehicle
+            name: Vehicle
+            icon: mdi:car-electric
 
           - type: tile
             entity: sensor.p_deferrable0
-            name: Scheduled Power
+            name: EMHASS Planned Power
             icon: mdi:chart-timeline-variant
 
           - type: tile
-            entity: device_tracker.driveway_volkswagen_id4_location
-            name: Car Location
-            icon: mdi:map-marker
+            entity: sensor.evcc_loadpoint_1_phases
+            name: Active Phases
+            icon: mdi:transmission-tower
 
-      # ── History ─────────────────────────────────────────────
       - title: History
         cards:
           - type: history-graph
             title: Charger Power (24h)
             hours_to_show: 24
             entities:
-              - entity: sensor.laddare_vid_husknuten_power
+              - entity: sensor.evcc_loadpoint_1_power
                 name: Actual
               - entity: sensor.p_deferrable0
-                name: Scheduled
+                name: EMHASS planned
 
           - type: history-graph
             title: Car SOC (48h)
             hours_to_show: 48
             entities:
-              - entity: sensor.driveway_volkswagen_id4_battery_level
+              - entity: sensor.evcc_loadpoint_1_soc
                 name: SOC
 
-      # ── Costs ───────────────────────────────────────────────
-      - title: Costs
-        cards:
-          - type: entities
-            show_header_toggle: false
-            entities:
-              - entity: sensor.laddare_vid_husknuten_cost_day
-                name: Today
-              - entity: sensor.laddare_vid_husknuten_cost_month
-                name: This month
-              - entity: sensor.laddare_vid_husknuten_lifetime_energy
-                name: Lifetime energy
+          - type: tile
+            entity: sensor.evcc_loadpoint_1_charged_energy
+            name: Current Session Energy
+            icon: mdi:battery-charging-high
+            color: green

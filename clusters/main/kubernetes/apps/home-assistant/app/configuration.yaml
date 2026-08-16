@@ -6,6 +6,9 @@ tts:
 
 lovelace:
   mode: storage
+  resources:
+    - url: /hacsfiles/hass-evcc-card/evcc-card.js
+      type: module
   dashboards:
     ev-charging:
       mode: yaml
@@ -96,6 +99,16 @@ input_number:
 # EMHASS REST commands
 # ---------------------------------------------------------------------------
 rest_command:
+  evcc_mode_now:
+    url: "http://evcc.evcc.svc.cluster.local:7070/api/loadpoints/1/mode/now"
+    method: POST
+    timeout: 15
+
+  evcc_mode_off:
+    url: "http://evcc.evcc.svc.cluster.local:7070/api/loadpoints/1/mode/off"
+    method: POST
+    timeout: 15
+
   emhass_mpc_optim:
     url: "http://emhass.emhass.svc.cluster.local:5000/action/naive-mpc-optim"
     method: POST
@@ -123,19 +136,22 @@ rest_command:
       {%- endfor -%}
       {%- set horizon = [sell_dict.d | length, max_horizon_slots] | min -%}
       {%- set ev_requested = is_state('input_boolean.ev_charge_requested', 'on') -%}
-      {%- set ev_home = is_state('device_tracker.driveway_volkswagen_id4_location', 'home') -%}
-      {%- set ev_plugged = states('sensor.laddare_vid_husknuten_status') in ['awaiting_start', 'charging', 'completed'] -%}
-      {%- set ev_soc_raw = states('sensor.driveway_volkswagen_id4_battery_level') -%}
+      {%- set ev_plugged = is_state('sensor.evcc_loadpoint_1_connected', 'true') -%}
+      {%- set ev_soc_raw = states('sensor.evcc_loadpoint_1_soc') -%}
       {%- set ev_soc = ev_soc_raw | float(-1) -%}
       {%- set ev_target = states('input_number.ev_target_soc') | float(80) -%}
       {%- set ev_battery_kwh = 77 -%}
       {%- set ev_charge_kw = 11.04 -%}
       {%- set ev_charge_overhead = 1.05 -%}
       {%- set slot_seconds = slot_minutes * 60 -%}
-      {%- set ev_active = ev_requested and ev_home and ev_plugged and ev_soc >= 0 and ev_soc < ev_target -%}
+      {%- set ev_power_raw = states('sensor.evcc_loadpoint_1_power') -%}
+      {%- set ev_power_available = ev_power_raw | is_number -%}
+      {%- set ev_actual_power = ev_power_raw | float(0) -%}
+      {%- set ev_ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) -%}
+      {%- set ev_deadline_valid = ev_ready_ts > as_timestamp(now()) -%}
+      {%- set ev_active = ev_requested and ev_plugged and ev_soc >= 0 and ev_soc < ev_target and ev_deadline_valid -%}
       {%- if ev_active -%}
         {%- set ev_hours_raw = ((ev_target - ev_soc) / 100 * ev_battery_kwh / ev_charge_kw * ev_charge_overhead) | round(2) -%}
-        {%- set ev_ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) -%}
         {%- set ev_deadline_slots = ((ev_ready_ts - as_timestamp(now())) / slot_seconds) | int -%}
         {#- Deadline beyond horizon: defer scheduling until horizon catches up -#}
         {%- if ev_deadline_slots > horizon -%}
@@ -152,13 +168,15 @@ rest_command:
         {%- set ev_hours_raw = 0 -%}
         {%- set ev_deadline = 0 -%}
       {%- endif -%}
-      {%- set ev_charging = is_state('sensor.laddare_vid_husknuten_status', 'charging') -%}
+      {%- set ev_charging = is_state('sensor.evcc_loadpoint_1_charging', 'true') -%}
+      {%- set ev_current_power = ev_actual_power if (ev_requested and ev_charging and ev_power_available) else 0 -%}
       {
         "soc_init": {{ curr_soc }},
         "soc_final": {{ curr_soc }},
         "prediction_horizon": {{ horizon }},
         "operating_hours_of_each_deferrable_load": [{{ ev_hours }}],
         "def_current_state": [{{ ev_charging | lower }}],
+        "def_current_power": [{{ ev_current_power | round(0) }}],
         "treat_deferrable_load_as_semi_cont": [false],
         "set_deferrable_load_single_constant": [false],
         "end_timesteps_of_each_deferrable_load": [{{ ev_deadline }}],
@@ -188,6 +206,71 @@ rest_command:
     content_type: "application/json"
     payload: "{}"
     timeout: 300
+
+# ---------------------------------------------------------------------------
+# EVCC state bridge
+# ---------------------------------------------------------------------------
+# Keep the control and planner entities stable even if the optional HACS
+# integration changes its generated entity names. EVCC /api/state is read-only
+# here; all writes still go through the two rest_commands above.
+rest:
+  - resource: "http://evcc.evcc.svc.cluster.local:7070/api/state"
+    scan_interval: 30
+    sensor:
+      - name: "EVCC Loadpoint 1 Mode"
+        unique_id: evcc_loadpoint_1_mode
+        value_template: >-
+          {{ value_json.loadpoints[0].mode }}
+      - name: "EVCC Loadpoint 1 Connected"
+        unique_id: evcc_loadpoint_1_connected
+        value_template: >-
+          {{ value_json.loadpoints[0].connected | lower }}
+      - name: "EVCC Loadpoint 1 Charging"
+        unique_id: evcc_loadpoint_1_charging
+        value_template: >-
+          {{ value_json.loadpoints[0].charging | lower }}
+      - name: "EVCC Loadpoint 1 Power"
+        unique_id: evcc_loadpoint_1_power
+        device_class: power
+        unit_of_measurement: "W"
+        state_class: measurement
+        value_template: >-
+          {{ value_json.loadpoints[0].chargePower | float(0) | round(0) }}
+      - name: "EVCC Loadpoint 1 SOC"
+        unique_id: evcc_loadpoint_1_soc
+        device_class: battery
+        unit_of_measurement: "%"
+        state_class: measurement
+        value_template: >-
+          {{ value_json.loadpoints[0].vehicleSoc | float(-1) | round(1) }}
+      - name: "EVCC Loadpoint 1 Vehicle"
+        unique_id: evcc_loadpoint_1_vehicle
+        value_template: >-
+          {{ value_json.loadpoints[0].vehicleName | default('', true) }}
+      - name: "EVCC Loadpoint 1 Phases"
+        unique_id: evcc_loadpoint_1_phases
+        unit_of_measurement: "phases"
+        value_template: >-
+          {{ value_json.loadpoints[0].phasesActive | int(0) }}
+      - name: "EVCC Loadpoint 1 Max Current"
+        unique_id: evcc_loadpoint_1_max_current
+        device_class: current
+        unit_of_measurement: "A"
+        state_class: measurement
+        value_template: >-
+          {{ value_json.loadpoints[0].effectiveMaxCurrent | float(0) | round(1) }}
+      - name: "EVCC Loadpoint 1 Charged Energy"
+        unique_id: evcc_loadpoint_1_charged_energy
+        device_class: energy
+        unit_of_measurement: "kWh"
+        value_template: >-
+          {{ value_json.loadpoints[0].chargedEnergy | float(0) | round(3) }}
+      - name: "EVCC Loadpoint 1 Remaining Energy"
+        unique_id: evcc_loadpoint_1_remaining_energy
+        device_class: energy
+        unit_of_measurement: "kWh"
+        value_template: >-
+          {{ value_json.loadpoints[0].chargeRemainingEnergy | float(0) | round(3) }}
 
 # ---------------------------------------------------------------------------
 # Template sensors
@@ -228,8 +311,7 @@ template:
             {{ is_state('binary_sensor.lavendelgangen_3_cooling_operational_status', 'on') }}
           {% endif %}
 
-  # House consumption excluding deferrable loads (EV charger).
-  # Easee reports power in kW; convert to W so it graphs alongside GoodWe
+  # House consumption excluding the EV deferrable load.
   - sensor:
       - name: "EV Charger Power"
         unique_id: ev_charger_power_w
@@ -237,7 +319,7 @@ template:
         unit_of_measurement: "W"
         state_class: measurement
         state: >-
-          {{ (states('sensor.laddare_vid_husknuten_power') | float(0) * 1000) | round(0) }}
+          {{ states('sensor.evcc_loadpoint_1_power') | float(0) | round(0) }}
 
   # EMHASS needs load_no_var_loads = total consumption minus any loads
   # it schedules as deferrable, otherwise it double-counts them.
@@ -471,37 +553,6 @@ template:
         state: >-
           {{ -(states('sensor.goodwe_meter_active_power_total') | float(0)) }}
 
-  # Solar budget available for EV charging.
-  # Uses PV production directly (not the grid meter) so battery discharge
-  # is never mistaken for solar surplus. Represents TOTAL EV budget, i.e.
-  # available headroom regardless of whether the EV is currently charging.
-  # Formula: PV - total house load - EMHASS battery charge + current EV draw.
-  # This keeps the value stable when charging starts (no self-induced dive).
-  #
-  # In idle mode (general + charge_pv), the battery absorbs PV surplus
-  # opportunistically — but yields automatically when the EV starts,
-  # because charge_pv(0) only charges from true PV surplus after the
-  # grid meter. So we DON'T subtract idle-mode battery charge here;
-  # the inverter self-balances.
-  #
-  # goodwe_battery_power sign: positive = discharging, negative = charging.
-  - sensor:
-      - name: "Solar Surplus for EV"
-        unique_id: solar_surplus_for_ev
-        device_class: power
-        unit_of_measurement: "W"
-        state_class: measurement
-        icon: mdi:solar-power-variant
-        state: >-
-          {% set pv = states('sensor.goodwe_pv_power') | float(0) %}
-          {% set house_total = states('sensor.goodwe_house_consumption') | float(0) %}
-          {% set ev_w = states('sensor.laddare_vid_husknuten_power') | float(0) * 1000 %}
-          {% set batt = states('sensor.goodwe_battery_power') | float(0) %}
-          {% set ems = states('select.goodwe_ems_mode') %}
-          {% set emhass_charging = ems == 'auto' and batt < 0 %}
-          {% set batt_charge = (-batt) if emhass_charging else 0 %}
-          {{ [pv - house_total - batt_charge + ev_w, 0] | max | round(0) }}
-
   # Snow detector: fires when forecast > min_forecast_w but actual < snow_threshold (5%).
   # An automation latches input_boolean.solar_panels_snow_covered ON
   # when this turns on. A separate automation clears the boolean when
@@ -560,12 +611,13 @@ template:
       - trigger: state
         entity_id:
           - input_boolean.ev_charge_requested
-          - sensor.laddare_vid_husknuten_status
-          - sensor.laddare_vid_husknuten_power
-          - sensor.driveway_volkswagen_id4_battery_level
+          - sensor.evcc_loadpoint_1_mode
+          - sensor.evcc_loadpoint_1_connected
+          - sensor.evcc_loadpoint_1_charging
+          - sensor.evcc_loadpoint_1_power
+          - sensor.evcc_loadpoint_1_soc
           - input_number.ev_target_soc
           - input_datetime.ev_ready_by
-          - device_tracker.driveway_volkswagen_id4_location
     sensor:
       - name: "EV Plan Status"
         unique_id: ev_plan_status
@@ -581,23 +633,22 @@ template:
           {% endif %}
         state: >-
           {% set requested = is_state('input_boolean.ev_charge_requested', 'on') %}
-          {% set charger = states('sensor.laddare_vid_husknuten_status') %}
-          {% set soc = states('sensor.driveway_volkswagen_id4_battery_level') | float(-1) %}
+          {% set mode = states('sensor.evcc_loadpoint_1_mode') %}
+          {% set connected = is_state('sensor.evcc_loadpoint_1_connected', 'true') %}
+          {% set charging = is_state('sensor.evcc_loadpoint_1_charging', 'true') %}
+          {% set soc = states('sensor.evcc_loadpoint_1_soc') | float(-1) %}
           {% set target = states('input_number.ev_target_soc') | float(80) %}
-          {% set pos = states('device_tracker.driveway_volkswagen_id4_location') %}
-          {% set home = pos in ['home', 'unknown', 'unavailable'] %}
-          {% set plugged = charger in ['awaiting_start', 'charging', 'completed'] %}
           {% if not requested %}
             idle
-          {% elif not home %}
-            not home
-          {% elif not plugged %}
+          {% elif not connected %}
             not plugged in
           {% elif soc >= target %}
             complete
-          {% elif charger == 'charging' %}
+          {% elif charging %}
             charging
-          {% elif charger == 'awaiting_start' %}
+          {% elif mode == 'off' %}
+            paused
+          {% elif mode == 'now' %}
             scheduled
           {% else %}
             paused
@@ -609,7 +660,7 @@ template:
         state_class: measurement
         icon: mdi:progress-check
         state: >-
-          {% set soc = states('sensor.driveway_volkswagen_id4_battery_level') | float(0) %}
+          {% set soc = states('sensor.evcc_loadpoint_1_soc') | float(0) %}
           {% set target = states('input_number.ev_target_soc') | float(0) %}
           {% if target <= 0 %}
             0
@@ -642,7 +693,7 @@ template:
         device_class: energy
         icon: mdi:lightning-bolt
         state: >-
-          {% set soc = states('sensor.driveway_volkswagen_id4_battery_level') | float(0) %}
+          {% set soc = states('sensor.evcc_loadpoint_1_soc') | float(0) %}
           {% set target = states('input_number.ev_target_soc') | float(80) %}
           {% set battery_kwh = 77 %}
           {% set overhead = 1.05 %}

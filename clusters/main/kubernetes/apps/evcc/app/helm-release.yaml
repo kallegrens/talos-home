@@ -1,0 +1,115 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: evcc
+  namespace: evcc
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: app-template
+      version: 5.0.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+      interval: 15m
+  timeout: 10m
+  maxHistory: 3
+  driftDetection:
+    mode: warn
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+
+  values:
+    controllers:
+      evcc:
+        containers:
+          app:
+            image:
+              repository: evcc/evcc
+              tag: 0.314.0
+              pullPolicy: IfNotPresent
+            env:
+              TZ: Europe/Stockholm
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 7070
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 7070
+                  initialDelaySeconds: 10
+                  periodSeconds: 15
+                  timeoutSeconds: 3
+                  failureThreshold: 5
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 7070
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 30
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+    service:
+      app:
+        controller: evcc
+        ports:
+          http:
+            port: 7070
+
+    ingress:
+      app:
+        className: internal
+        annotations:
+          cert-manager.io/cluster-issuer: domain-0-le-prod
+        hosts:
+          - host: evcc.${DOMAIN_0}
+            paths:
+              - path: /
+                service:
+                  identifier: app
+                  port: http
+        tls:
+          - hosts:
+              - evcc.${DOMAIN_0}
+            secretName: evcc-tls
+
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        globalMounts:
+          - path: /root/.evcc
