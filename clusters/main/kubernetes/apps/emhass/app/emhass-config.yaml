@@ -89,7 +89,7 @@ data:
       "maximum_power_from_grid": 13800,
       "maximum_power_to_grid": 10000,
       "set_use_pv": true,
-      "set_use_adjusted_pv": true,
+      "set_use_adjusted_pv": false,
       "adjusted_pv_regression_model": "LassoRegression",
       "adjusted_pv_solar_elevation_threshold": 10,
       "adjusted_pv_model_max_age": 24,
