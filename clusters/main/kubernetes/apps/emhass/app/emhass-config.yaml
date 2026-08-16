@@ -10,7 +10,7 @@ data:
       "logging_level": "INFO",
       "costfun": "profit",
       "optimization_time_step": 15,
-      "historic_days_to_retrieve": 90,
+      "historic_days_to_retrieve": 60,
       "method_ts_round": "nearest",
       "continual_publish": true,
       "data_path": "default",
@@ -89,7 +89,7 @@ data:
       "maximum_power_from_grid": 13800,
       "maximum_power_to_grid": 10000,
       "set_use_pv": true,
-      "set_use_adjusted_pv": false,
+      "set_use_adjusted_pv": true,
       "adjusted_pv_regression_model": "LassoRegression",
       "adjusted_pv_solar_elevation_threshold": 10,
       "adjusted_pv_model_max_age": 24,
@@ -117,5 +117,8 @@ data:
       "battery_maximum_state_of_charge": 1.0,
       "battery_target_state_of_charge": 0.6,
       "battery_stress_cost": 0.0,
-      "battery_stress_segments": 10
+      "battery_stress_segments": 10,
+      "set_use_battery_identification": false,
+      "sensor_power_battery": "sensor.goodwe_battery_power",
+      "sensor_battery_state_of_charge": "sensor.goodwe_battery_state_of_charge"
     }
