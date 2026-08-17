@@ -694,7 +694,7 @@
                   target:
                     entity_id: select.evcc_corner_charger_mode
                   data:
-                    option: "'off'"
+                    option: "{{ 'off' }}"
                 - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
                   timeout: "00:00:30"
                   continue_on_timeout: true
@@ -737,7 +737,7 @@
                           target:
                             entity_id: select.evcc_corner_charger_mode
                           data:
-                            option: "'off'"
+                            option: "{{ 'off' }}"
                         - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
                           timeout: "00:00:30"
                           continue_on_timeout: true
@@ -755,7 +755,7 @@
                           target:
                             entity_id: select.evcc_corner_charger_mode
                           data:
-                            option: "'off'"
+                            option: "{{ 'off' }}"
                         - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
                           timeout: "00:00:30"
                           continue_on_timeout: true
@@ -784,7 +784,7 @@
                           target:
                             entity_id: select.evcc_corner_charger_mode
                           data:
-                            option: "'now'"
+                            option: "{{ 'now' }}"
       default:
         - if:
             - condition: template
@@ -798,7 +798,7 @@
                   target:
                     entity_id: select.evcc_corner_charger_mode
                   data:
-                    option: "'off'"
+                    option: "{{ 'off' }}"
                 - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
                   timeout: "00:00:30"
                   continue_on_timeout: true
@@ -818,7 +818,7 @@
                   target:
                     entity_id: select.evcc_corner_charger_mode
                   data:
-                    option: "'pv'"
+                    option: "{{ 'pv' }}"
             - action: input_boolean.turn_off
               target:
                 entity_id: input_boolean.ev_emhass_executor_active
