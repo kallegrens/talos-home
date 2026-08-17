@@ -477,19 +477,23 @@
 
 # ===========================================================================
 # EV Charging (EVCC executor + EMHASS deferrable load)
-#   input_boolean.ev_charge_requested  = user toggle (on-demand)
-#   input_number.ev_target_soc         = desired SOC % (default 80)
-#   input_datetime.ev_ready_by         = deadline (date+time)
-#   sensor.p_deferrable0               = EMHASS EV power schedule
-#   sensor.evcc_loadpoint_1_*          = EVCC read-only state bridge
+#   input_boolean.ev_charge_requested   = HA schedule claim
+#   input_boolean.ev_charge_kill_switch = emergency-only hard stop
+#   input_number.ev_target_soc          = known-vehicle target SOC
+#   input_number.ev_target_energy_kwh   = guest-vehicle energy target
+#   input_datetime.ev_ready_by          = HA schedule deadline
+#   sensor.p_deferrable0                = continuous EMHASS power profile
+#
+# With no HA schedule claim, this section must not write to EVCC. EVCC owns
+# its own PV, Now, Off, plan, current, and phase controls in that state.
 # ===========================================================================
 
 - id: "1770700000013"
-  alias: EV Charge - Validate Request
+  alias: EV Schedule - Validate Request
   description: >-
-    On toggle-on: hard-rejects if deadline is in the past (always a
-    mistake). Soft-warns if target SOC <= current SOC or car SOC is
-    unavailable (legitimate plan-ahead scenarios).
+    On toggle-on: rejects a past deadline and warns when SOC is unavailable.
+    An unavailable SOC is valid for a guest vehicle, which uses the energy
+    target instead.
   triggers:
     - trigger: state
       entity_id: input_boolean.ev_charge_requested
@@ -498,25 +502,34 @@
   actions:
     - variables:
         cur: "{{ states('sensor.evcc_loadpoint_1_soc') | float(-1) }}"
+        vehicle: "{{ states('sensor.evcc_loadpoint_1_vehicle') }}"
         tgt: "{{ states('input_number.ev_target_soc') | float(80) }}"
+        guest_target: "{{ states('input_number.ev_target_energy_kwh') | float(0) }}"
         ready_ts: "{{ state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) }}"
         now_ts: "{{ as_timestamp(now()) }}"
         deadline_past: "{{ ready_ts <= now_ts }}"
+        guest_vehicle: "{{ vehicle in ['', 'guest', 'unknown', 'unavailable'] }}"
     - choose:
         # Hard reject: deadline in the past
         - conditions:
             - condition: template
-              value_template: "{{ deadline_past }}"
+              value_template: >-
+                {{ (deadline_past | bool) or
+                   ((guest_vehicle | bool) and guest_target | float <= 0) }}
           sequence:
             - action: input_boolean.turn_off
               target:
                 entity_id: input_boolean.ev_charge_requested
             - action: persistent_notification.create
               data:
-                title: "❌ EV Charge Request Rejected"
+                title: "❌ EV Schedule Rejected"
                 message: >-
+                  {% if guest_vehicle | bool and guest_target | float <= 0 and not deadline_past | bool %}
+                  Guest target energy is zero. Set it before scheduling.
+                  {% else %}
                   Deadline ({{ states('input_datetime.ev_ready_by') }}) is in
                   the past. Update the Ready By time and try again.
+                  {% endif %}
                 notification_id: ev_charge_rejected
       default:
         # Soft warn: SOC looks odd but request goes through
@@ -524,7 +537,7 @@
           value_template: "{{ (cur >= 0 and tgt <= cur) or cur < 0 }}"
         - action: persistent_notification.create
           data:
-            title: "⚠️ EV Charge Request — Heads Up"
+            title: "⚠️ EV Schedule — Heads Up"
             message: >-
               {% if cur >= 0 and tgt <= cur %}
               🔋 Target SOC ({{ tgt | int }}%) ≤ current SOC ({{ cur | int }}%).
@@ -532,12 +545,16 @@
               {% if cur < 0 %}
               🚗 Car SOC unavailable (car may be asleep).
               {% endif %}
-              Charge request accepted anyway.
+              {% if cur < 0 and guest_target <= 0 %}
+              Guest target energy is zero. Set it before scheduling.
+              {% else %}
+              Schedule accepted. EMHASS will use the guest energy target.
+              {% endif %}
             notification_id: ev_charge_warning
   mode: single
 
 - id: "1770700000014"
-  alias: EV Charge - Insufficient Time Warning
+  alias: EV Schedule - Insufficient Time Warning
   description: >-
     Fires when the MPC payload caps ev_hours because the deadline
     is too tight to reach the target SOC. Checked every 4 min.
@@ -590,59 +607,225 @@
         notification_id: ev_insufficient_time
   mode: single
 
-- id: "1770700000015"
-  alias: EV Charge - Pause on Cancel
-  description: >-
-    When the user (or another automation) turns off ev_charge_requested,
-    immediately set the EVCC loadpoint to off.
-  triggers:
-    - entity_id: input_boolean.ev_charge_requested
-      to: "off"
-      trigger: state
-  actions:
-    - action: rest_command.evcc_mode_off
-  mode: single
-
 - id: "1770700000010"
-  alias: EV Charge Control via EVCC
+  alias: EV Schedule - Execute EMHASS Profile via EVCC
   description: >-
-    Translates the current EMHASS deferrable-load decision into an EVCC
-    loadpoint mode. EVCC owns the Easee charger, vehicle communication,
-    phase handling, and current limits. EMHASS remains the only planner.
+    Claims EVCC only while the HA schedule request is active. Outside that
+    state this automation is deliberately silent so EVCC can operate its own
+    PV, Now, Off, plan, current, and phase controls without interference.
+    During a schedule, EMHASS owns the power trajectory and this automation
+    converts the current slot to a fixed phase/current command for EVCC.
   triggers:
+    - trigger: time_pattern
+      minutes: "/1"
     - trigger: state
       entity_id: sensor.p_deferrable0
     - trigger: state
       entity_id:
         - input_boolean.ev_charge_requested
+        - input_boolean.ev_charge_kill_switch
         - input_number.ev_target_soc
+        - input_number.ev_target_energy_kwh
         - input_datetime.ev_ready_by
+        - input_datetime.emhass_last_publish
         - sensor.evcc_loadpoint_1_connected
         - sensor.evcc_loadpoint_1_soc
         - sensor.evcc_loadpoint_1_mode
+        - sensor.evcc_loadpoint_1_charging
+        - sensor.evcc_loadpoint_1_configured_phases
+        - sensor.evcc_loadpoint_1_max_current
+    - trigger: event
+      event_type: ev_charge_executor_refresh
   actions:
     - variables:
         p_def: "{{ states('sensor.p_deferrable0') | float(0) }}"
         requested: "{{ is_state('input_boolean.ev_charge_requested', 'on') }}"
+        kill_switch: "{{ is_state('input_boolean.ev_charge_kill_switch', 'on') }}"
         connected: "{{ is_state('sensor.evcc_loadpoint_1_connected', 'true') }}"
         deadline: "{{ state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) }}"
         deadline_valid: "{{ deadline > as_timestamp(now()) }}"
-        target: "{{ states('input_number.ev_target_soc') | float(80) }}"
-        soc: "{{ states('sensor.evcc_loadpoint_1_soc') | float(-1) }}"
-        soc_valid: "{{ states('sensor.evcc_loadpoint_1_soc') | is_number }}"
-        should_charge: "{{ requested and connected and deadline_valid and soc_valid and soc >= 0 and soc < target and p_def > 100 }}"
+        schedule_active: "{{ (requested | bool) and (deadline_valid | bool) }}"
+        executor_active: "{{ is_state('input_boolean.ev_emhass_executor_active', 'on') }}"
+        heartbeat: "{{ state_attr('input_datetime.emhass_last_publish', 'timestamp') | float(0) }}"
+        heartbeat_fresh: "{{ heartbeat > 0 and (as_timestamp(now()) - heartbeat) <= 1200 }}"
+        current_mode: "{{ states('sensor.evcc_loadpoint_1_mode') }}"
+        charging: "{{ is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
+        configured_phases: "{{ states('sensor.evcc_loadpoint_1_configured_phases') | int(0) }}"
+        effective_min_current: "{{ states('sensor.evcc_loadpoint_1_min_current') | float(6) }}"
+        effective_max_current: "{{ states('sensor.evcc_loadpoint_1_max_current') | float(16) }}"
+        profile_max_current: >-
+          {% if executor_active and states('input_number.evcc_saved_max_current') | is_number %}
+            {{ states('input_number.evcc_saved_max_current') | float(16) }}
+          {% else %}
+            {{ effective_max_current }}
+          {% endif %}
+        effective_power: "{{ p_def if (connected | bool) else 0 }}"
+        minimum_power: "{{ effective_min_current | float * 230 }}"
+        one_phase_max_power: "{{ profile_max_current | float * 230 }}"
+        slot_chargeable: >-
+          {{ (connected | bool) and
+             ((effective_power | float) >= (minimum_power | float)) }}
+        command_phase: >-
+          {% if not slot_chargeable %}
+            0
+          {% elif effective_power | float <= one_phase_max_power | float %}
+            1
+          {% else %}
+            3
+          {% endif %}
+        command_current: >-
+          {% if not slot_chargeable %}
+            0
+          {% else %}
+            {% set phases = 1 if effective_power | float <= one_phase_max_power | float else 3 %}
+            {% set raw = effective_power | float / (230 * phases) %}
+            {{ [[raw, effective_min_current | float] | max, profile_max_current | float] | min | round(1) }}
+          {% endif %}
     - choose:
         - conditions:
             - condition: template
-              value_template: "{{ should_charge | bool }}"
+              value_template: "{{ kill_switch | bool }}"
           sequence:
-            - action: rest_command.evcc_mode_now
+            - if:
+                - condition: template
+                  value_template: "{{ current_mode != 'off' or charging }}"
+              then:
+                - action: select.select_option
+                  target:
+                    entity_id: select.evcc_corner_charger_mode
+                  data:
+                    option: off
+                - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
+                  timeout: "00:00:30"
+                  continue_on_timeout: true
+        - conditions:
+            - condition: template
+              value_template: "{{ schedule_active | bool }}"
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ not executor_active | bool }}"
+              then:
+                - action: input_number.set_value
+                  target:
+                    entity_id: input_number.evcc_saved_max_current
+                  data:
+                    value: "{{ states('sensor.evcc_loadpoint_1_max_current') | float(16) }}"
+                - action: input_number.set_value
+                  target:
+                    entity_id: input_number.evcc_saved_phases
+                  data:
+                    value: "{{ states('sensor.evcc_loadpoint_1_configured_phases') | int(0) }}"
+                - action: input_number.set_value
+                  target:
+                    entity_id: input_number.evcc_saved_charged_energy
+                  data:
+                    value: "{{ states('sensor.evcc_loadpoint_1_charged_energy') | float(0) }}"
+                - action: input_boolean.turn_on
+                  target:
+                    entity_id: input_boolean.ev_emhass_executor_active
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ not heartbeat_fresh | bool or not slot_chargeable | bool }}"
+                  sequence:
+                    - if:
+                        - condition: template
+                          value_template: "{{ current_mode != 'off' or charging }}"
+                      then:
+                        - action: select.select_option
+                          target:
+                            entity_id: select.evcc_corner_charger_mode
+                          data:
+                            option: off
+                        - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
+                          timeout: "00:00:30"
+                          continue_on_timeout: true
+                - conditions:
+                    - condition: template
+                      value_template: "{{ slot_chargeable | bool }}"
+                  sequence:
+                    - if:
+                        - condition: template
+                          value_template: >-
+                            {{ configured_phases | int != command_phase | int and
+                               (current_mode != 'off' or charging) }}
+                      then:
+                        - action: select.select_option
+                          target:
+                            entity_id: select.evcc_corner_charger_mode
+                          data:
+                            option: off
+                        - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
+                          timeout: "00:00:30"
+                          continue_on_timeout: true
+                    - if:
+                        - condition: template
+                          value_template: "{{ configured_phases | int != command_phase | int }}"
+                      then:
+                        - action: select.select_option
+                          target:
+                            entity_id: select.evcc_corner_charger_phases_configured
+                          data:
+                            option: "{{ command_phase | int }}"
+                    - if:
+                        - condition: template
+                          value_template: >-
+                            {{ (states('sensor.evcc_loadpoint_1_max_current') | float(0) - command_current | float(0)) | abs > 0.1 }}
+                      then:
+                        - action: rest_command.evcc_max_current
+                          data:
+                            current: "{{ command_current }}"
+                    - if:
+                        - condition: template
+                          value_template: "{{ current_mode != 'now' }}"
+                      then:
+                        - action: select.select_option
+                          target:
+                            entity_id: select.evcc_corner_charger_mode
+                          data:
+                            option: now
       default:
-        - action: rest_command.evcc_mode_off
-  mode: single
+        - if:
+            - condition: template
+              value_template: "{{ executor_active | bool }}"
+          then:
+            - if:
+                - condition: template
+                  value_template: "{{ current_mode != 'off' or charging }}"
+              then:
+                - action: select.select_option
+                  target:
+                    entity_id: select.evcc_corner_charger_mode
+                  data:
+                    option: off
+                - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
+                  timeout: "00:00:30"
+                  continue_on_timeout: true
+            - action: rest_command.evcc_max_current
+              data:
+                current: "{{ states('input_number.evcc_saved_max_current') | float(16) }}"
+            - action: select.select_option
+              target:
+                entity_id: select.evcc_corner_charger_phases_configured
+              data:
+                option: "{{ states('input_number.evcc_saved_phases') | int(0) }}"
+            - if:
+                - condition: template
+                  value_template: "{{ not kill_switch | bool }}"
+              then:
+                - action: select.select_option
+                  target:
+                    entity_id: select.evcc_corner_charger_mode
+                  data:
+                    option: pv
+            - action: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.ev_emhass_executor_active
+  mode: restart
 
 - id: "1770700000011"
-  alias: EV Charge Complete
+  alias: EV Schedule Complete - SOC Target
   description: >-
     Auto-clears ev_charge_requested only when EV SOC reaches the
     target. Unplugging or leaving home does NOT cancel the request —
@@ -651,6 +834,9 @@
   triggers:
     - trigger: state
       entity_id: sensor.evcc_loadpoint_1_soc
+    - trigger: state
+      entity_id: input_boolean.ev_charge_requested
+      to: "on"
   conditions:
     - condition: state
       entity_id: input_boolean.ev_charge_requested
@@ -666,22 +852,58 @@
     - action: input_boolean.turn_off
       target:
         entity_id: input_boolean.ev_charge_requested
-    - action: rest_command.evcc_mode_off
     - action: persistent_notification.create
       data:
-        title: "🔋 EV Charge Complete"
+        title: "🔋 EV Schedule Complete"
         message: >-
-          ID.4 reached {{ ev_soc }}% SOC (target: {{ ev_target }}%).
-          Charge request cleared at {{ now().strftime('%H:%M') }}.
+          Vehicle reached {{ ev_soc }}% SOC (target: {{ ev_target }}%).
+          The EMHASS schedule was cleared at {{ now().strftime('%H:%M') }}.
         notification_id: ev_charge_complete
   mode: single
 
-- id: "1770700000012"
-  alias: EV Charge Failsafe
+- id: "1770700000023"
+  alias: EV Schedule Complete - Guest Energy Target
   description: >-
-    If EMHASS hasn't published for >20 min, set EVCC to off. This is
-    deliberately independent of the current loadpoint state so stale or
-    unavailable telemetry cannot bypass the safe action.
+    Clears a guest-vehicle schedule after the requested amount of energy has
+    been delivered in the current EVCC session.
+  triggers:
+    - trigger: state
+      entity_id: sensor.evcc_loadpoint_1_charged_energy
+    - trigger: state
+      entity_id: input_boolean.ev_charge_requested
+      to: "on"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ev_charge_requested
+      state: "on"
+    - condition: template
+      value_template: >-
+        {{ states('sensor.evcc_loadpoint_1_vehicle') in ['', 'guest', 'unknown', 'unavailable'] }}
+    - condition: template
+      value_template: >-
+        {{ (states('sensor.evcc_loadpoint_1_charged_energy') | float(0) -
+            states('input_number.evcc_saved_charged_energy') | float(0)) >=
+           states('input_number.ev_target_energy_kwh') | float(0) }}
+  actions:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.ev_charge_requested
+    - action: persistent_notification.create
+      data:
+        title: "🔋 Guest EV Schedule Complete"
+        message: >-
+          Guest vehicle received at least {{ states('input_number.ev_target_energy_kwh') }} kWh.
+          The EMHASS schedule was cleared at {{ now().strftime('%H:%M') }}.
+        notification_id: ev_schedule_complete_guest
+  mode: single
+
+- id: "1770700000012"
+  alias: EV Schedule Failsafe
+  description: >-
+    If EMHASS hasn't published for >20 min during an HA-owned schedule, stop
+    the EV and clear the schedule. The executor then restores EVCC PV mode.
+    With no HA schedule active this automation is completely inert, so a
+    manually operated EVCC loadpoint is never touched.
   triggers:
     - minutes: /7
       trigger: time_pattern
@@ -692,31 +914,47 @@
         {% set hb_ts = state_attr('input_datetime.emhass_last_publish', 'timestamp') %}
         {{ hb_ts is none or
            (as_timestamp(now()) - hb_ts) > stale_threshold_sec }}
+    - condition: state
+      entity_id: input_boolean.ev_charge_requested
+      state: "on"
+    - condition: state
+      entity_id: input_boolean.ev_emhass_executor_active
+      state: "on"
   actions:
-    - action: rest_command.evcc_mode_off
+    - action: select.select_option
+      target:
+        entity_id: select.evcc_corner_charger_mode
+      data:
+        option: off
+    - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
+      timeout: "00:00:30"
+      continue_on_timeout: true
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.ev_charge_requested
     - action: persistent_notification.create
       data:
         title: "⚠️ EV Charge Failsafe"
         message: >-
-          EMHASS stale >20 min. EVCC loadpoint set to off.
-          Re-enable ev_charge_requested after EMHASS recovers.
+          EMHASS stale >20 min. The HA-owned EV schedule was stopped and EVCC
+          was released back to Solar mode.
           Time: {{ now().strftime('%H:%M') }}
         notification_id: ev_failsafe
   mode: single
 
 - id: "1770700000022"
-  alias: EVCC Loadpoint Safe Startup
+  alias: EV Executor Startup Refresh
   description: >-
-    Starts EVCC in off mode after Home Assistant restarts. The regular MPC
-    loop will issue a new now command only after it has published a current
-    plan.
+    Refreshes the mutually exclusive EV executor after Home Assistant starts.
+    If no HA schedule is active, this only causes the executor to observe and
+    then remain silent; it never forces EVCC out of a user-selected mode.
   triggers:
     - trigger: homeassistant
       event: start
   actions:
     - delay:
         seconds: 15
-    - action: rest_command.evcc_mode_off
+    - event: ev_charge_executor_refresh
   mode: single
 
 # ===========================================================================

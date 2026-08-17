@@ -6,9 +6,6 @@ tts:
 
 lovelace:
   mode: storage
-  resources:
-    - url: /hacsfiles/hass-evcc-card/evcc-card.js
-      type: module
   dashboards:
     ev-charging:
       mode: yaml
@@ -38,8 +35,16 @@ input_boolean:
     icon: mdi:calendar-arrow-right
     initial: true
   ev_charge_requested:
-    name: EV charge requested
+    name: Schedule EV charge
     icon: mdi:ev-station
+    initial: false
+  ev_charge_kill_switch:
+    name: EV charging emergency stop
+    icon: mdi:stop-circle
+    initial: false
+  ev_emhass_executor_active:
+    name: EMHASS EV executor active
+    icon: mdi:robot
     initial: false
   mower_rain_override:
     name: Mower parked by rain
@@ -85,6 +90,39 @@ input_number:
     initial: 80
     unit_of_measurement: "%"
     mode: slider
+  ev_target_energy_kwh:
+    name: Guest EV energy to add
+    icon: mdi:battery-charging
+    min: 1
+    max: 100
+    step: 0.1
+    initial: 20
+    unit_of_measurement: "kWh"
+    mode: box
+  evcc_saved_max_current:
+    name: Saved EVCC maximum current
+    min: 0
+    max: 32
+    step: 0.1
+    initial: 16
+    unit_of_measurement: "A"
+    mode: box
+  evcc_saved_phases:
+    name: Saved EVCC configured phases
+    min: 0
+    max: 3
+    step: 1
+    initial: 0
+    unit_of_measurement: "phases"
+    mode: box
+  evcc_saved_charged_energy:
+    name: Saved EVCC session energy
+    min: 0
+    max: 500
+    step: 0.1
+    initial: 0
+    unit_of_measurement: "kWh"
+    mode: box
   mower_rain_event_mm:
     name: Mower rain event mm
     icon: mdi:cup-water
@@ -99,13 +137,9 @@ input_number:
 # EMHASS REST commands
 # ---------------------------------------------------------------------------
 rest_command:
-  evcc_mode_now:
-    url: "http://evcc.evcc.svc.cluster.local:7070/api/loadpoints/1/mode/now"
-    method: POST
-    timeout: 15
-
-  evcc_mode_off:
-    url: "http://evcc.evcc.svc.cluster.local:7070/api/loadpoints/1/mode/off"
+  evcc_max_current:
+    url: >-
+      http://evcc.evcc.svc.cluster.local:7070/api/loadpoints/1/maxcurrent/{{ current | float(0) | round(1) }}
     method: POST
     timeout: 15
 
@@ -139,7 +173,10 @@ rest_command:
       {%- set ev_plugged = is_state('sensor.evcc_loadpoint_1_connected', 'true') -%}
       {%- set ev_soc_raw = states('sensor.evcc_loadpoint_1_soc') -%}
       {%- set ev_soc = ev_soc_raw | float(-1) -%}
+      {%- set ev_vehicle = states('sensor.evcc_loadpoint_1_vehicle') -%}
+      {%- set ev_is_guest = ev_vehicle in ['', 'guest', 'unknown', 'unavailable'] -%}
       {%- set ev_target = states('input_number.ev_target_soc') | float(80) -%}
+      {%- set ev_guest_target_kwh = states('input_number.ev_target_energy_kwh') | float(20) -%}
       {%- set ev_battery_kwh = 77 -%}
       {%- set ev_charge_kw = 11.04 -%}
       {%- set ev_charge_overhead = 1.05 -%}
@@ -149,9 +186,16 @@ rest_command:
       {%- set ev_actual_power = ev_power_raw | float(0) -%}
       {%- set ev_ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) -%}
       {%- set ev_deadline_valid = ev_ready_ts > as_timestamp(now()) -%}
-      {%- set ev_active = ev_requested and ev_plugged and ev_soc >= 0 and ev_soc < ev_target and ev_deadline_valid -%}
+      {%- set ev_soc_active = ev_requested and ev_plugged and ev_soc >= 0 and ev_soc < ev_target and ev_deadline_valid -%}
+      {%- set ev_guest_active = ev_requested and ev_plugged and ev_is_guest and ev_soc < 0 and ev_guest_target_kwh > 0 and ev_deadline_valid -%}
+      {%- set ev_active = ev_soc_active or ev_guest_active -%}
       {%- if ev_active -%}
-        {%- set ev_hours_raw = ((ev_target - ev_soc) / 100 * ev_battery_kwh / ev_charge_kw * ev_charge_overhead) | round(2) -%}
+        {%- if ev_soc_active -%}
+          {%- set ev_energy_kwh = (ev_target - ev_soc) / 100 * ev_battery_kwh -%}
+        {%- else -%}
+          {%- set ev_energy_kwh = ev_guest_target_kwh -%}
+        {%- endif -%}
+        {%- set ev_hours_raw = (ev_energy_kwh / ev_charge_kw * ev_charge_overhead) | round(2) -%}
         {%- set ev_deadline_slots = ((ev_ready_ts - as_timestamp(now())) / slot_seconds) | int -%}
         {#- Deadline beyond horizon: defer scheduling until horizon catches up -#}
         {%- if ev_deadline_slots > horizon -%}
@@ -169,13 +213,13 @@ rest_command:
         {%- set ev_deadline = 0 -%}
       {%- endif -%}
       {%- set ev_charging = is_state('sensor.evcc_loadpoint_1_charging', 'true') -%}
-      {%- set ev_current_power = ev_actual_power if (ev_requested and ev_charging and ev_power_available) else 0 -%}
+      {%- set ev_current_power = ev_actual_power if (ev_active and ev_charging and ev_power_available) else 0 -%}
       {
         "soc_init": {{ curr_soc }},
         "soc_final": {{ curr_soc }},
         "prediction_horizon": {{ horizon }},
         "operating_hours_of_each_deferrable_load": [{{ ev_hours }}],
-        "def_current_state": [{{ ev_charging | lower }}],
+        "def_current_state": [{{ (ev_active and ev_charging) | lower }}],
         "def_current_power": [{{ ev_current_power | round(0) }}],
         "treat_deferrable_load_as_semi_cont": [false],
         "set_deferrable_load_single_constant": [false],
@@ -208,14 +252,14 @@ rest_command:
     timeout: 300
 
 # ---------------------------------------------------------------------------
-# EVCC state bridge
+# Stable EVCC read bridge
 # ---------------------------------------------------------------------------
-# Keep the control and planner entities stable even if the optional HACS
-# integration changes its generated entity names. EVCC /api/state is read-only
-# here; all writes still go through the two rest_commands above.
+# ha-evcc supplies the native controls and the dashboard integration. Keep
+# these stable read aliases for EMHASS and existing automations so generated
+# HACS entity names do not become part of the planner contract.
 rest:
   - resource: "http://evcc.evcc.svc.cluster.local:7070/api/state"
-    scan_interval: 30
+    scan_interval: 10
     sensor:
       - name: "EVCC Loadpoint 1 Mode"
         unique_id: evcc_loadpoint_1_mode
@@ -252,6 +296,11 @@ rest:
         unit_of_measurement: "phases"
         value_template: >-
           {{ value_json.loadpoints[0].phasesActive | int(0) }}
+      - name: "EVCC Loadpoint 1 Configured Phases"
+        unique_id: evcc_loadpoint_1_configured_phases
+        unit_of_measurement: "phases"
+        value_template: >-
+          {{ value_json.loadpoints[0].phasesConfigured | int(0) }}
       - name: "EVCC Loadpoint 1 Max Current"
         unique_id: evcc_loadpoint_1_max_current
         device_class: current
@@ -259,6 +308,13 @@ rest:
         state_class: measurement
         value_template: >-
           {{ value_json.loadpoints[0].effectiveMaxCurrent | float(0) | round(1) }}
+      - name: "EVCC Loadpoint 1 Min Current"
+        unique_id: evcc_loadpoint_1_min_current
+        device_class: current
+        unit_of_measurement: "A"
+        state_class: measurement
+        value_template: >-
+          {{ value_json.loadpoints[0].effectiveMinCurrent | float(0) | round(1) }}
       - name: "EVCC Loadpoint 1 Charged Energy"
         unique_id: evcc_loadpoint_1_charged_energy
         device_class: energy
@@ -311,7 +367,9 @@ template:
             {{ is_state('binary_sensor.lavendelgangen_3_cooling_operational_status', 'on') }}
           {% endif %}
 
-  # House consumption excluding the EV deferrable load.
+  # House consumption excluding the EV only while the HA schedule owns it.
+  # When EVCC is operating independently, keep the actual EV load in the
+  # baseline so EMHASS battery dispatch still sees the real house demand.
   - sensor:
       - name: "EV Charger Power"
         unique_id: ev_charger_power_w
@@ -331,7 +389,9 @@ template:
         state_class: measurement
         state: >-
           {% set total = states('sensor.goodwe_house_consumption') | float(0) %}
-          {% set ev_w = states('sensor.ev_charger_power') | float(0) %}
+          {% set ready = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
+          {% set scheduled = is_state('input_boolean.ev_charge_requested', 'on') and ready > as_timestamp(now()) %}
+          {% set ev_w = states('sensor.ev_charger_power') | float(0) if scheduled else 0 %}
           {{ [total - ev_w, 0] | max | round(0) }}
 
       # HP Power Estimation — temp-dependent model from GoodWe correlation
@@ -611,47 +671,59 @@ template:
       - trigger: state
         entity_id:
           - input_boolean.ev_charge_requested
+          - input_boolean.ev_charge_kill_switch
+          - input_boolean.ev_emhass_executor_active
           - sensor.evcc_loadpoint_1_mode
           - sensor.evcc_loadpoint_1_connected
           - sensor.evcc_loadpoint_1_charging
           - sensor.evcc_loadpoint_1_power
           - sensor.evcc_loadpoint_1_soc
+          - sensor.evcc_loadpoint_1_vehicle
           - input_number.ev_target_soc
+          - input_number.ev_target_energy_kwh
           - input_datetime.ev_ready_by
     sensor:
       - name: "EV Plan Status"
         unique_id: ev_plan_status
         icon: >-
           {% set s = this.state %}
-          {% if s == 'charging' %}mdi:ev-station
-          {% elif s == 'scheduled' %}mdi:calendar-clock
+          {% if s in ['charging', 'solar charging', 'EVCC charging', 'scheduled charging'] %}mdi:ev-station
+          {% elif s in ['scheduled', 'scheduled waiting'] %}mdi:calendar-clock
           {% elif s == 'complete' %}mdi:check-circle
-          {% elif s == 'paused' %}mdi:pause-circle
+          {% elif s == 'emergency stopped' %}mdi:stop-circle
           {% elif s == 'not home' %}mdi:car-off
           {% elif s == 'not plugged in' %}mdi:power-plug-off
           {% else %}mdi:ev-plug-type2
           {% endif %}
         state: >-
           {% set requested = is_state('input_boolean.ev_charge_requested', 'on') %}
+          {% set executor = is_state('input_boolean.ev_emhass_executor_active', 'on') %}
           {% set mode = states('sensor.evcc_loadpoint_1_mode') %}
           {% set connected = is_state('sensor.evcc_loadpoint_1_connected', 'true') %}
           {% set charging = is_state('sensor.evcc_loadpoint_1_charging', 'true') %}
+          {% set kill = is_state('input_boolean.ev_charge_kill_switch', 'on') %}
           {% set soc = states('sensor.evcc_loadpoint_1_soc') | float(-1) %}
           {% set target = states('input_number.ev_target_soc') | float(80) %}
-          {% if not requested %}
-            idle
+          {% if kill and executor %}
+            emergency stopped
           {% elif not connected %}
             not plugged in
-          {% elif soc >= target %}
+          {% elif executor and soc >= 0 and soc >= target %}
             complete
-          {% elif charging %}
-            charging
-          {% elif mode == 'off' %}
-            paused
-          {% elif mode == 'now' %}
+          {% elif executor and mode == 'now' and charging %}
+            scheduled charging
+          {% elif executor and mode == 'now' %}
             scheduled
+          {% elif executor %}
+            scheduled waiting
+          {% elif mode == 'pv' and charging %}
+            solar charging
+          {% elif mode == 'now' and charging %}
+            EVCC charging
+          {% elif mode == 'off' %}
+            EVCC stopped
           {% else %}
-            paused
+            EVCC control
           {% endif %}
 
       - name: "EV Plan Progress"
@@ -660,12 +732,18 @@ template:
         state_class: measurement
         icon: mdi:progress-check
         state: >-
-          {% set soc = states('sensor.evcc_loadpoint_1_soc') | float(0) %}
+          {% set soc_raw = states('sensor.evcc_loadpoint_1_soc') %}
+          {% set soc = soc_raw | float(-1) %}
+          {% set vehicle = states('sensor.evcc_loadpoint_1_vehicle') %}
           {% set target = states('input_number.ev_target_soc') | float(0) %}
-          {% if target <= 0 %}
-            0
-          {% else %}
+          {% set energy = states('sensor.evcc_loadpoint_1_charged_energy') | float(0) %}
+          {% set energy_target = states('input_number.ev_target_energy_kwh') | float(0) %}
+          {% if soc_raw | is_number and vehicle not in ['', 'guest', 'unknown', 'unavailable'] and target > 0 %}
             {{ [[((soc / target) * 100) | round(0), 0] | max, 100] | min }}
+          {% elif energy_target > 0 %}
+            {{ [[((energy / energy_target) * 100) | round(0), 0] | max, 100] | min }}
+          {% else %}
+            0
           {% endif %}
 
       - name: "EV Plan Time Remaining"
@@ -673,10 +751,10 @@ template:
         icon: mdi:timer-sand
         state: >-
           {% set requested = is_state('input_boolean.ev_charge_requested', 'on') %}
-          {% if not requested %}
+          {% set ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
+          {% if not requested or ready_ts <= as_timestamp(now()) %}
             —
           {% else %}
-            {% set ready_ts = state_attr('input_datetime.ev_ready_by', 'timestamp') | float(0) %}
             {% set secs = (ready_ts - as_timestamp(now())) | int %}
             {% if secs <= 0 %}
               overdue
@@ -693,12 +771,19 @@ template:
         device_class: energy
         icon: mdi:lightning-bolt
         state: >-
-          {% set soc = states('sensor.evcc_loadpoint_1_soc') | float(0) %}
+          {% set soc_raw = states('sensor.evcc_loadpoint_1_soc') %}
+          {% set soc = soc_raw | float(-1) %}
+          {% set vehicle = states('sensor.evcc_loadpoint_1_vehicle') %}
           {% set target = states('input_number.ev_target_soc') | float(80) %}
           {% set battery_kwh = 77 %}
           {% set overhead = 1.05 %}
-          {% set needed = ((target - soc) / 100 * battery_kwh * overhead) %}
-          {{ [needed, 0] | max | round(1) }}
+          {% set guest_target = states('input_number.ev_target_energy_kwh') | float(0) %}
+          {% if soc_raw | is_number and vehicle not in ['', 'guest', 'unknown', 'unavailable'] %}
+            {% set needed = ((target - soc) / 100 * battery_kwh * overhead) %}
+            {{ [needed, 0] | max | round(1) }}
+          {% else %}
+            {{ guest_target | round(1) }}
+          {% endif %}
 
   # ---------------------------------------------------------------------------
   # Mower rain / lawn-dryness sensors

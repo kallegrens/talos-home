@@ -10,7 +10,7 @@ views:
         cards:
           - type: tile
             entity: input_boolean.ev_charge_requested
-            name: Request Charge
+            name: Schedule EV Charge
             icon: mdi:ev-station
             color: green
             vertical: true
@@ -18,8 +18,17 @@ views:
               action: toggle
 
           - type: tile
+            entity: input_boolean.ev_charge_kill_switch
+            name: Emergency Stop
+            icon: mdi:stop-circle
+            color: red
+            vertical: true
+            tap_action:
+              action: toggle
+
+          - type: tile
             entity: input_number.ev_target_soc
-            name: Target SOC
+            name: Known Vehicle Target SOC
             icon: mdi:battery-charging-80
             color: blue
             tap_action:
@@ -41,6 +50,31 @@ views:
                         value: "{{ value }}"
                       target:
                         entity_id: input_number.ev_target_soc
+
+          - type: tile
+            entity: input_number.ev_target_energy_kwh
+            name: Guest Energy to Add
+            icon: mdi:battery-charging
+            color: teal
+            tap_action:
+              action: none
+            features:
+              - type: custom:service-call
+                entries:
+                  - type: slider
+                    entity_id: input_number.ev_target_energy_kwh
+                    range:
+                      - 1
+                      - 100
+                    step: 0.1
+                    unit_of_measurement: "kWh"
+                    tap_action:
+                      action: perform-action
+                      perform_action: input_number.set_value
+                      data:
+                        value: "{{ value }}"
+                      target:
+                        entity_id: input_number.ev_target_energy_kwh
 
           - type: tile
             entity: input_datetime.ev_ready_by
@@ -75,8 +109,8 @@ views:
 
       - title: EVCC Overview
         cards:
-          # Requires the HACS ha-evcc integration and hass-evcc-card resource.
-          # This is a read/visualisation card; EMHASS remains the mode owner.
+          # Requires the configured ha-evcc integration and the HACS
+          # hass-evcc-card resource registered by HACS in Lovelace resources.
           - type: custom:evcc-card
             mode: flow
             title: Energy Flow
@@ -164,6 +198,21 @@ views:
             entity: sensor.evcc_loadpoint_1_phases
             name: Active Phases
             icon: mdi:transmission-tower
+
+          - type: tile
+            entity: sensor.evcc_loadpoint_1_configured_phases
+            name: Configured Phases
+            icon: mdi:transmission-tower
+
+          - type: tile
+            entity: sensor.evcc_loadpoint_1_max_current
+            name: Maximum Current
+            icon: mdi:current-ac
+
+          - type: tile
+            entity: input_boolean.ev_emhass_executor_active
+            name: EMHASS Executor
+            icon: mdi:robot
 
       - title: History
         cards:
