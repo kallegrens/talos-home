@@ -727,7 +727,7 @@
             - choose:
                 - conditions:
                     - condition: template
-                      value_template: "{{ not heartbeat_fresh | bool or not slot_chargeable | bool }}"
+                      value_template: "{{ not heartbeat_fresh | bool }}"
                   sequence:
                     - if:
                         - condition: template
@@ -741,6 +741,19 @@
                         - wait_template: "{{ not is_state('sensor.evcc_loadpoint_1_charging', 'true') }}"
                           timeout: "00:00:30"
                           continue_on_timeout: true
+                - conditions:
+                    - condition: template
+                      value_template: "{{ not slot_chargeable | bool }}"
+                  sequence:
+                    - if:
+                        - condition: template
+                          value_template: "{{ current_mode != 'pv' }}"
+                      then:
+                        - action: select.select_option
+                          target:
+                            entity_id: select.evcc_corner_charger_mode
+                          data:
+                            option: "{{ 'pv' }}"
                 - conditions:
                     - condition: template
                       value_template: "{{ slot_chargeable | bool }}"
