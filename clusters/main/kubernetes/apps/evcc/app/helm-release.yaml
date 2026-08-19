@@ -38,7 +38,7 @@ spec:
           app:
             image:
               repository: evcc/evcc
-              tag: 0.314.1
+              tag: 0.314.2
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Stockholm
