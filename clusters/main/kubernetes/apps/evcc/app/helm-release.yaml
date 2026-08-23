@@ -87,7 +87,7 @@ spec:
           trial-token-updater:
             image:
               repository: python
-              tag: 3.13-alpine
+              tag: 3.14-alpine
               pullPolicy: IfNotPresent
             command:
               - python
