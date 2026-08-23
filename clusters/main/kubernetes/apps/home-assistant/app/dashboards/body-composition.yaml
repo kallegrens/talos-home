@@ -225,8 +225,8 @@ views:
             color: blue
 
           - type: tile
-            entity: sensor.karl_lundgren_extracellular_water
-            name: Extracellular Water (Outside Cells)
+            entity: sensor.body_extracellular_water_filtered
+            name: Extracellular Water (Filtered ECW)
             icon: mdi:water-minus
             color: light-blue
 

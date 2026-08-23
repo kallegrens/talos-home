@@ -471,10 +471,11 @@ template:
         state_class: measurement
         state: >-
           {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
-          {% set ecw = states('sensor.karl_lundgren_extracellular_water') | float(0) %}
-          {% set icw = states('sensor.karl_lundgren_intracellular_water') | float(0) %}
-          {% if lbm > 0 and (ecw + icw) > 0 %}
-            {{ (lbm - (ecw + icw)) | round(2) }}
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set water_pct = states('sensor.karl_lundgren_water') | float(0) %}
+          {% if lbm > 0 and weight > 0 and water_pct > 0 %}
+            {% set tbw = weight * (water_pct / 100) %}
+            {{ (lbm - tbw) | round(2) }}
           {% else %}
             unavailable
           {% endif %}
@@ -586,15 +587,39 @@ template:
           {% endif %}
 
       # Group D: Hydration & Noise Filtering
+      - name: "Body Extracellular Water Filtered"
+        unique_id: body_extracellular_water_filtered
+        unit_of_measurement: "L"
+        icon: mdi:water-opacity
+        state_class: measurement
+        state: >-
+          {% set raw_ecw = states('sensor.karl_lundgren_extracellular_water') | float(0) %}
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set water_pct = states('sensor.karl_lundgren_water') | float(0) %}
+          {% set ecw_tbw_pct = states('sensor.karl_lundgren_ecw_tbw_ratio') | float(39.2) %}
+          {% set expected_tbw = weight * (water_pct / 100) %}
+          {% set calculated_ecw = expected_tbw * (ecw_tbw_pct / 100) %}
+          {% if raw_ecw >= 12 and raw_ecw <= 27 %}
+            {{ raw_ecw | round(2) }}
+          {% elif calculated_ecw > 0 %}
+            {{ calculated_ecw | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
       - name: "Body ICW to ECW Ratio"
         unique_id: body_icw_to_ecw_ratio
         icon: mdi:water-sync
         state_class: measurement
         state: >-
-          {% set ecw = states('sensor.karl_lundgren_extracellular_water') | float(0) %}
+          {% set raw_ecw = states('sensor.karl_lundgren_extracellular_water') | float(0) %}
           {% set icw = states('sensor.karl_lundgren_intracellular_water') | float(0) %}
-          {% if ecw > 0 and icw > 0 %}
-            {{ (icw / ecw) | round(2) }}
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set water_pct = states('sensor.karl_lundgren_water') | float(0) %}
+          {% set ecw_tbw_pct = states('sensor.karl_lundgren_ecw_tbw_ratio') | float(39.2) %}
+          {% set ecw_clean = raw_ecw if (raw_ecw >= 12 and raw_ecw <= 27) else ((weight * (water_pct / 100)) * (ecw_tbw_pct / 100)) %}
+          {% if ecw_clean > 0 and icw > 0 %}
+            {{ (icw / ecw_clean) | round(2) }}
           {% else %}
             unavailable
           {% endif %}
