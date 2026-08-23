@@ -34,6 +34,9 @@ spec:
   values:
     controllers:
       evcc:
+        pod:
+          shareProcessNamespace: true
+
         containers:
           app:
             image:
@@ -81,6 +84,23 @@ spec:
                 cpu: 500m
                 memory: 512Mi
 
+          trial-token-updater:
+            image:
+              repository: python
+              tag: 3.13-alpine
+              pullPolicy: IfNotPresent
+            command:
+              - python
+              - -u
+              - /scripts/trial-token-updater.py
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                cpu: 50m
+                memory: 64Mi
+
     service:
       app:
         controller: evcc
@@ -113,3 +133,11 @@ spec:
         size: 2Gi
         globalMounts:
           - path: /root/.evcc
+      scripts:
+        type: configMap
+        name: evcc-trial-token-updater
+        defaultMode: 0755
+        advancedMounts:
+          evcc:
+            trial-token-updater:
+              - path: /scripts
