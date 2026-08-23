@@ -1,0 +1,433 @@
+title: Body Composition
+views:
+  - title: Fat Loss & Recomposition
+    path: recomposition
+    icon: mdi:scale-bathroom
+    type: sections
+    max_columns: 3
+    sections:
+      # =======================================================================
+      # Section 1: Hero & Velocity Overview
+      # =======================================================================
+      - title: Transformation Overview
+        cards:
+          - type: tile
+            entity: sensor.karl_lundgren_weight
+            name: Current Scale Weight
+            icon: mdi:scale-bathroom
+            color: blue
+            vertical: false
+
+          - type: tile
+            entity: sensor.body_remaining_weight_to_target
+            name: Remaining to Target Weight
+            icon: mdi:flag-checkered
+            color: orange
+            vertical: false
+
+          - type: tile
+            entity: sensor.body_projected_goal_date_30d
+            name: Projected Finish (30d Rate)
+            icon: mdi:calendar-check
+            color: purple
+            vertical: false
+
+          - type: tile
+            entity: sensor.body_total_weight_lost
+            name: Total Weight Lost
+            icon: mdi:trending-down
+            color: green
+            vertical: false
+
+          - type: tile
+            entity: sensor.body_total_fat_mass_lost
+            name: Total Fat Mass Lost
+            icon: mdi:fire
+            color: green
+            vertical: false
+
+          - type: tile
+            entity: sensor.body_total_lean_mass_delta
+            name: Total Lean Mass Change
+            icon: mdi:arm-flex
+            color: cyan
+            vertical: false
+
+      # =======================================================================
+      # Section 2: Recomposition Truth Charts (LTS Graphs)
+      # =======================================================================
+      - title: Recomposition Truth Charts
+        cards:
+          - type: statistics-graph
+            title: "Recomposition: Fat Mass vs Body Cell Mass (30d)"
+            entities:
+              - sensor.body_fat_mass_absolute
+              - sensor.karl_lundgren_body_cell_mass
+              - sensor.body_dry_lean_mass
+              - sensor.karl_lundgren_weight
+            stat_types:
+              - mean
+            days_to_show: 30
+            chart_type: line
+
+          - type: statistics-graph
+            title: "Muscle Retention: SMM & FFMI Trend (30d)"
+            entities:
+              - sensor.karl_lundgren_skeletal_muscle_mass
+              - sensor.body_ffmi
+            stat_types:
+              - mean
+            days_to_show: 30
+            chart_type: line
+
+      # =======================================================================
+      # Section 3: Forbes' Rule & Loss Quality (7d, 14d, 30d)
+      # =======================================================================
+      - title: Forbes' Rule & Loss Quality
+        cards:
+          - type: gauge
+            entity: sensor.body_forbes_lean_loss_ratio_30d
+            name: "30-Day Lean Mass Loss % (Forbes)"
+            unit: "%"
+            min: 0
+            max: 50
+            needle: true
+            severity:
+              green: 0
+              yellow: 15
+              red: 25
+
+          - type: gauge
+            entity: sensor.body_fat_loss_quality_30d
+            name: "30-Day Fat Loss Quality %"
+            unit: "%"
+            min: 0
+            max: 100
+            needle: true
+            severity:
+              red: 0
+              yellow: 75
+              green: 85
+
+          - type: entities
+            title: Multi-Window Loss Kinetics
+            show_header_toggle: false
+            entities:
+              - entity: sensor.body_weekly_loss_rate_7d
+                name: "7-Day Loss Rate (Target: 0.5-1.0%/wk)"
+              - entity: sensor.body_forbes_lean_loss_ratio_7d
+                name: "7-Day Forbes Lean Loss %"
+              - entity: sensor.body_fat_loss_quality_7d
+                name: "7-Day Fat Loss Quality %"
+              - entity: sensor.body_weekly_loss_rate_14d
+                name: "14-Day Loss Rate (%/wk)"
+              - entity: sensor.body_forbes_lean_loss_ratio_14d
+                name: "14-Day Forbes Lean Loss %"
+              - entity: sensor.body_fat_loss_quality_14d
+                name: "14-Day Fat Loss Quality %"
+              - entity: sensor.body_weekly_loss_rate_30d
+                name: "30-Day Loss Rate (%/wk)"
+              - entity: sensor.body_forbes_lean_loss_ratio_30d
+                name: "30-Day Forbes Lean Loss %"
+              - entity: sensor.body_fat_loss_quality_30d
+                name: "30-Day Fat Loss Quality %"
+
+      # =======================================================================
+      # Section 4: Muscle Preservation & Key Ratios
+      # =======================================================================
+      - title: Muscle Preservation & Ratios
+        cards:
+          - type: gauge
+            entity: sensor.body_fat_to_smm_ratio
+            name: Fat to Skeletal Muscle Ratio
+            min: 0.2
+            max: 2.0
+            needle: true
+            severity:
+              green: 0.2
+              yellow: 0.8
+              red: 1.1
+
+          - type: gauge
+            entity: sensor.body_skeletal_muscle_to_fat_ratio
+            name: Skeletal Muscle to Fat Ratio (SMR)
+            min: 0.4
+            max: 2.5
+            needle: true
+            severity:
+              red: 0.4
+              yellow: 0.8
+              green: 1.2
+
+          - type: tile
+            entity: sensor.karl_lundgren_body_cell_mass
+            name: Body Cell Mass (BCM - True Living Tissue)
+            icon: mdi:shield-check
+            color: green
+
+          - type: tile
+            entity: sensor.karl_lundgren_skeletal_muscle_mass
+            name: Skeletal Muscle Mass (SMM)
+            icon: mdi:arm-flex
+            color: green
+
+          - type: tile
+            entity: sensor.body_skeletal_muscle_pct
+            name: Skeletal Muscle %
+            icon: mdi:percent
+            color: green
+
+          - type: tile
+            entity: sensor.body_total_muscle_pct
+            name: Total Muscle Mass %
+            icon: mdi:arm-flex-outline
+            color: green
+
+          - type: tile
+            entity: sensor.body_dry_lean_mass
+            name: Dry Lean Mass (DLBM - No Fluid Noise)
+            icon: mdi:bone
+            color: teal
+
+          - type: tile
+            entity: sensor.body_fat_to_lbm_ratio
+            name: Fat to Lean Body Mass Ratio
+            icon: mdi:scale-balance
+            color: indigo
+
+      # =======================================================================
+      # Section 5: Hydration & Inflammation Noise Filters
+      # =======================================================================
+      - title: Hydration & Noise Filter
+        cards:
+          - type: gauge
+            entity: sensor.karl_lundgren_ecw_tbw_ratio
+            name: ECW / TBW Ratio (Fluid Distribution)
+            unit: "%"
+            min: 35.0
+            max: 45.0
+            needle: true
+            severity:
+              green: 35.0
+              yellow: 38.5
+              red: 39.5
+
+          - type: tile
+            entity: sensor.body_icw_to_ecw_ratio
+            name: Cellular Hydration (ICW / ECW)
+            icon: mdi:water-sync
+            color: cyan
+
+          - type: tile
+            entity: sensor.karl_lundgren_intracellular_water
+            name: Intracellular Water (Inside Muscle Cells)
+            icon: mdi:water-plus
+            color: blue
+
+          - type: tile
+            entity: sensor.karl_lundgren_extracellular_water
+            name: Extracellular Water (Outside Cells)
+            icon: mdi:water-minus
+            color: light-blue
+
+          - type: tile
+            entity: sensor.karl_lundgren_water
+            name: Total Body Water %
+            icon: mdi:water-percent
+            color: blue
+
+      # =======================================================================
+      # Section 6: Physique Standards & Athletic Indices
+      # =======================================================================
+      - title: Physique Standards & Indices
+        cards:
+          - type: gauge
+            entity: sensor.body_ffmi
+            name: Fat-Free Mass Index (FFMI)
+            min: 16.0
+            max: 26.0
+            needle: true
+            severity:
+              yellow: 16.0
+              green: 20.0
+              blue: 23.0
+
+          - type: tile
+            entity: sensor.body_ffmi_normalized
+            name: Normalized FFMI (Height Standardized)
+            icon: mdi:human-handsup
+            color: green
+
+          - type: tile
+            entity: sensor.body_fat_mass_index
+            name: Fat Mass Index (FMI)
+            icon: mdi:human
+            color: orange
+
+          - type: tile
+            entity: sensor.body_skeletal_muscle_index
+            name: Skeletal Muscle Index (SMI)
+            icon: mdi:arm-flex
+            color: green
+
+          - type: tile
+            entity: sensor.karl_lundgren_bmi
+            name: Body Mass Index (BMI)
+            icon: mdi:account-details
+            color: purple
+
+          - type: tile
+            entity: sensor.karl_lundgren_body_score
+            name: Body Score
+            icon: mdi:star-circle
+            color: amber
+
+      # =======================================================================
+      # Section 7: Metabolic Baselines & Energy Deficit
+      # =======================================================================
+      - title: Metabolic Baselines & Deficit
+        cards:
+          - type: tile
+            entity: sensor.body_bmr_katch_mcardle
+            name: Dynamic BMR (Katch-McArdle)
+            icon: mdi:fire
+            color: red
+
+          - type: tile
+            entity: sensor.body_tdee_estimated
+            name: Dynamic Estimated TDEE
+            icon: mdi:lightning-bolt
+            color: amber
+
+          - type: tile
+            entity: sensor.body_target_calorie_intake
+            name: Target Caloric Intake
+            icon: mdi:food-apple
+            color: green
+
+          - type: tile
+            entity: sensor.body_bmr_cunningham
+            name: Cunningham Athlete BMR
+            icon: mdi:fire-circle
+            color: red
+
+          - type: tile
+            entity: sensor.karl_lundgren_basal_metabolism
+            name: Scale Estimated BMR
+            icon: mdi:counter
+            color: deep-orange
+
+          - type: tile
+            entity: sensor.karl_lundgren_visceral_fat
+            name: Visceral Fat Level
+            icon: mdi:alert-decagram
+            color: orange
+
+          - type: tile
+            entity: sensor.karl_lundgren_protein
+            name: Protein Percentage
+            icon: mdi:nutrition
+            color: brown
+
+          - type: tile
+            entity: sensor.karl_lundgren_metabolic_age
+            name: Metabolic Age
+            icon: mdi:calendar-account
+            color: purple
+
+      # =======================================================================
+      # Section 8: Interactive Target Tuning
+      # =======================================================================
+      - title: Transformation Settings
+        cards:
+          - type: tile
+            entity: input_number.body_height_m
+            name: Height
+            icon: mdi:human-male-height
+            color: teal
+            features:
+              - type: custom:service-call
+                entries:
+                  - type: slider
+                    entity_id: input_number.body_height_m
+                    range:
+                      - 1.50
+                      - 2.10
+                    step: 0.005
+                    unit_of_measurement: "m"
+                    tap_action:
+                      action: perform-action
+                      perform_action: input_number.set_value
+                      data:
+                        value: "{{ value }}"
+                      target:
+                        entity_id: input_number.body_height_m
+
+          - type: tile
+            entity: input_number.body_target_weight_kg
+            name: Target Weight
+            icon: mdi:flag-checkered
+            color: blue
+            features:
+              - type: custom:service-call
+                entries:
+                  - type: slider
+                    entity_id: input_number.body_target_weight_kg
+                    range:
+                      - 60
+                      - 120
+                    step: 0.5
+                    unit_of_measurement: "kg"
+                    tap_action:
+                      action: perform-action
+                      perform_action: input_number.set_value
+                      data:
+                        value: "{{ value }}"
+                      target:
+                        entity_id: input_number.body_target_weight_kg
+
+          - type: tile
+            entity: input_number.body_target_body_fat_pct
+            name: Target Body Fat %
+            icon: mdi:percent
+            color: orange
+            features:
+              - type: custom:service-call
+                entries:
+                  - type: slider
+                    entity_id: input_number.body_target_body_fat_pct
+                    range:
+                      - 8
+                      - 30
+                    step: 0.5
+                    unit_of_measurement: "%"
+                    tap_action:
+                      action: perform-action
+                      perform_action: input_number.set_value
+                      data:
+                        value: "{{ value }}"
+                      target:
+                        entity_id: input_number.body_target_body_fat_pct
+
+          - type: tile
+            entity: input_number.body_target_deficit_kcal
+            name: Target Calorie Deficit
+            icon: mdi:fire
+            color: red
+            features:
+              - type: custom:service-call
+                entries:
+                  - type: slider
+                    entity_id: input_number.body_target_deficit_kcal
+                    range:
+                      - 200
+                      - 1000
+                    step: 50
+                    unit_of_measurement: "kcal"
+                    tap_action:
+                      action: perform-action
+                      perform_action: input_number.set_value
+                      data:
+                        value: "{{ value }}"
+                      target:
+                        entity_id: input_number.body_target_deficit_kcal

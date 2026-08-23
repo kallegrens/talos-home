@@ -13,6 +13,12 @@ lovelace:
       icon: mdi:ev-station
       show_in_sidebar: true
       filename: dashboards/ev-charging.yaml
+    body-composition:
+      mode: yaml
+      title: Body Composition
+      icon: mdi:scale-bathroom
+      show_in_sidebar: true
+      filename: dashboards/body-composition.yaml
 
 group: !include groups.yaml
 automation: !include automations.yaml
@@ -56,6 +62,11 @@ input_boolean:
     initial: false
 
 input_datetime:
+  body_start_date:
+    name: Transformation start date
+    icon: mdi:calendar-start
+    has_date: true
+    has_time: false
   emhass_last_publish:
     name: EMHASS last publish
     icon: mdi:heart-pulse
@@ -73,6 +84,80 @@ input_datetime:
     has_time: true
 
 input_number:
+  # Body composition transformation parameters
+  body_height_m:
+    name: Body height
+    icon: mdi:human-male-height
+    min: 1.50
+    max: 2.20
+    step: 0.005
+    initial: 1.815
+    unit_of_measurement: "m"
+    mode: box
+  body_target_weight_kg:
+    name: Target weight
+    icon: mdi:flag-checkered
+    min: 50.0
+    max: 150.0
+    step: 0.5
+    initial: 85.0
+    unit_of_measurement: "kg"
+    mode: box
+  body_target_body_fat_pct:
+    name: Target body fat percentage
+    icon: mdi:percent
+    min: 5.0
+    max: 40.0
+    step: 0.5
+    initial: 16.0
+    unit_of_measurement: "%"
+    mode: box
+  body_activity_multiplier:
+    name: TDEE activity multiplier
+    icon: mdi:run
+    min: 1.1
+    max: 2.2
+    step: 0.025
+    initial: 1.375
+    mode: box
+  body_target_deficit_kcal:
+    name: Target calorie deficit
+    icon: mdi:fire
+    min: 0
+    max: 1200
+    step: 50
+    initial: 500
+    unit_of_measurement: "kcal"
+    mode: box
+  body_start_weight_kg:
+    name: Transformation starting weight
+    icon: mdi:weight-kilogram
+    min: 50.0
+    max: 200.0
+    step: 0.1
+    initial: 120.0
+    unit_of_measurement: "kg"
+    mode: box
+  body_start_fat_mass_kg:
+    name: Transformation starting fat mass
+    icon: mdi:water-percent
+    min: 0.0
+    max: 100.0
+    step: 0.1
+    initial: 44.16
+    unit_of_measurement: "kg"
+    mode: box
+  body_start_lbm_kg:
+    name: Transformation starting lean mass
+    icon: mdi:arm-flex
+    min: 0.0
+    max: 120.0
+    step: 0.1
+    initial: 75.90
+    unit_of_measurement: "kg"
+    mode: box
+
+  # EMHASS / EV / Mower inputs
   emhass_idle_streak:
     name: EMHASS consecutive idle count
     icon: mdi:counter
@@ -332,6 +417,553 @@ rest:
 # Template sensors
 # ---------------------------------------------------------------------------
 template:
+  # ---------------------------------------------------------------------------
+  # Body Composition & Fat Loss Derived Analytics
+  # ---------------------------------------------------------------------------
+  - sensor:
+      # Group A: True Muscle & Mass Isolators
+      - name: "Body Fat Mass Absolute"
+        unique_id: body_fat_mass_absolute
+        unit_of_measurement: "kg"
+        icon: mdi:water-percent
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set fat_pct = states('sensor.karl_lundgren_body_fat') | float(0) %}
+          {% if weight > 0 and fat_pct > 0 %}
+            {{ (weight * (fat_pct / 100)) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Skeletal Muscle Pct"
+        unique_id: body_skeletal_muscle_pct
+        unit_of_measurement: "%"
+        icon: mdi:arm-flex
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set smm = states('sensor.karl_lundgren_skeletal_muscle_mass') | float(0) %}
+          {% if weight > 0 and smm > 0 %}
+            {{ ((smm / weight) * 100) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Total Muscle Pct"
+        unique_id: body_total_muscle_pct
+        unit_of_measurement: "%"
+        icon: mdi:arm-flex-outline
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set mm = states('sensor.karl_lundgren_muscle_mass') | float(0) %}
+          {% if weight > 0 and mm > 0 %}
+            {{ ((mm / weight) * 100) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Dry Lean Mass"
+        unique_id: body_dry_lean_mass
+        unit_of_measurement: "kg"
+        icon: mdi:bone
+        state_class: measurement
+        state: >-
+          {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% set ecw = states('sensor.karl_lundgren_extracellular_water') | float(0) %}
+          {% set icw = states('sensor.karl_lundgren_intracellular_water') | float(0) %}
+          {% if lbm > 0 and (ecw + icw) > 0 %}
+            {{ (lbm - (ecw + icw)) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # Group B: Composition & Recomposition Ratios
+      - name: "Body Fat to SMM Ratio"
+        unique_id: body_fat_to_smm_ratio
+        icon: mdi:scale-balance
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set fat_pct = states('sensor.karl_lundgren_body_fat') | float(0) %}
+          {% set smm = states('sensor.karl_lundgren_skeletal_muscle_mass') | float(0) %}
+          {% set fat_kg = weight * (fat_pct / 100) %}
+          {% if smm > 0 and fat_kg > 0 %}
+            {{ (fat_kg / smm) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Skeletal Muscle to Fat Ratio"
+        unique_id: body_skeletal_muscle_to_fat_ratio
+        icon: mdi:scale-balance
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set fat_pct = states('sensor.karl_lundgren_body_fat') | float(0) %}
+          {% set smm = states('sensor.karl_lundgren_skeletal_muscle_mass') | float(0) %}
+          {% set fat_kg = weight * (fat_pct / 100) %}
+          {% if fat_kg > 0 and smm > 0 %}
+            {{ (smm / fat_kg) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Fat to LBM Ratio"
+        unique_id: body_fat_to_lbm_ratio
+        icon: mdi:scale-balance
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set fat_pct = states('sensor.karl_lundgren_body_fat') | float(0) %}
+          {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% set fat_kg = weight * (fat_pct / 100) %}
+          {% if lbm > 0 and fat_kg > 0 %}
+            {{ (fat_kg / lbm) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # Group C: Physique Standards & Athletic Indices
+      - name: "Body FFMI"
+        unique_id: body_ffmi
+        unit_of_measurement: "FFMI"
+        icon: mdi:human-handsup
+        state_class: measurement
+        state: >-
+          {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% set height_m = states('input_number.body_height_m') | float(1.815) %}
+          {% if lbm > 0 and height_m > 0 %}
+            {{ (lbm / (height_m ** 2)) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body FFMI Normalized"
+        unique_id: body_ffmi_normalized
+        unit_of_measurement: "FFMI"
+        icon: mdi:human-handsup
+        state_class: measurement
+        state: >-
+          {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% set height_m = states('input_number.body_height_m') | float(1.815) %}
+          {% if lbm > 0 and height_m > 0 %}
+            {% set ffmi = lbm / (height_m ** 2) %}
+            {{ (ffmi + 6.1 * (1.8 - height_m)) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Fat Mass Index"
+        unique_id: body_fat_mass_index
+        unit_of_measurement: "kg/m²"
+        icon: mdi:human
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set fat_pct = states('sensor.karl_lundgren_body_fat') | float(0) %}
+          {% set height_m = states('input_number.body_height_m') | float(1.815) %}
+          {% if weight > 0 and fat_pct > 0 and height_m > 0 %}
+            {% set fat_kg = weight * (fat_pct / 100) %}
+            {{ (fat_kg / (height_m ** 2)) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Skeletal Muscle Index"
+        unique_id: body_skeletal_muscle_index
+        unit_of_measurement: "kg/m²"
+        icon: mdi:arm-flex
+        state_class: measurement
+        state: >-
+          {% set smm = states('sensor.karl_lundgren_skeletal_muscle_mass') | float(0) %}
+          {% set height_m = states('input_number.body_height_m') | float(1.815) %}
+          {% if smm > 0 and height_m > 0 %}
+            {{ (smm / (height_m ** 2)) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # Group D: Hydration & Noise Filtering
+      - name: "Body ICW to ECW Ratio"
+        unique_id: body_icw_to_ecw_ratio
+        icon: mdi:water-sync
+        state_class: measurement
+        state: >-
+          {% set ecw = states('sensor.karl_lundgren_extracellular_water') | float(0) %}
+          {% set icw = states('sensor.karl_lundgren_intracellular_water') | float(0) %}
+          {% if ecw > 0 and icw > 0 %}
+            {{ (icw / ecw) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # Group E: Dynamic Metabolic & Nutrition Baselines
+      - name: "Body BMR Katch McArdle"
+        unique_id: body_bmr_katch_mcardle
+        unit_of_measurement: "kcal/day"
+        icon: mdi:fire
+        state_class: measurement
+        state: >-
+          {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% if lbm > 0 %}
+            {{ (370 + (21.6 * lbm)) | round(0) | int }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body BMR Cunningham"
+        unique_id: body_bmr_cunningham
+        unit_of_measurement: "kcal/day"
+        icon: mdi:fire
+        state_class: measurement
+        state: >-
+          {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% if lbm > 0 %}
+            {{ (500 + (22.0 * lbm)) | round(0) | int }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body TDEE Estimated"
+        unique_id: body_tdee_estimated
+        unit_of_measurement: "kcal/day"
+        icon: mdi:lightning-bolt
+        state_class: measurement
+        state: >-
+          {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% set mult = states('input_number.body_activity_multiplier') | float(1.375) %}
+          {% if lbm > 0 %}
+            {% set bmr = 370 + (21.6 * lbm) %}
+            {{ (bmr * mult) | round(0) | int }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Target Calorie Intake"
+        unique_id: body_target_calorie_intake
+        unit_of_measurement: "kcal/day"
+        icon: mdi:food-apple
+        state_class: measurement
+        state: >-
+          {% set lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% set mult = states('input_number.body_activity_multiplier') | float(1.375) %}
+          {% set deficit = states('input_number.body_target_deficit_kcal') | float(500) %}
+          {% if lbm > 0 %}
+            {% set bmr = 370 + (21.6 * lbm) %}
+            {{ [((bmr * mult) - deficit) | round(0) | int, 1200] | max }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # Group F: Target Progress & Journey Totals
+      - name: "Body Remaining Weight to Target"
+        unique_id: body_remaining_weight_to_target
+        unit_of_measurement: "kg"
+        icon: mdi:flag-checkered
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set target = states('input_number.body_target_weight_kg') | float(85.0) %}
+          {% if weight > 0 %}
+            {{ [weight - target, 0] | max | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Remaining Fat to Target"
+        unique_id: body_remaining_fat_to_target
+        unit_of_measurement: "kg"
+        icon: mdi:water-percent
+        state_class: measurement
+        state: >-
+          {% set weight = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set fat_pct = states('sensor.karl_lundgren_body_fat') | float(0) %}
+          {% set target_w = states('input_number.body_target_weight_kg') | float(85.0) %}
+          {% set target_bf = states('input_number.body_target_body_fat_pct') | float(16.0) %}
+          {% if weight > 0 and fat_pct > 0 %}
+            {% set current_fat = weight * (fat_pct / 100) %}
+            {% set target_fat = target_w * (target_bf / 100) %}
+            {{ [current_fat - target_fat, 0] | max | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Total Weight Lost"
+        unique_id: body_total_weight_lost
+        unit_of_measurement: "kg"
+        icon: mdi:trending-down
+        state_class: measurement
+        state: >-
+          {% set start_w = states('input_number.body_start_weight_kg') | float(120.0) %}
+          {% set current_w = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% if current_w > 0 and start_w > 0 %}
+            {{ (start_w - current_w) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Total Fat Mass Lost"
+        unique_id: body_total_fat_mass_lost
+        unit_of_measurement: "kg"
+        icon: mdi:trending-down
+        state_class: measurement
+        state: >-
+          {% set start_fat = states('input_number.body_start_fat_mass_kg') | float(44.16) %}
+          {% set current_fat = states('sensor.body_fat_mass_absolute') | float(0) %}
+          {% if current_fat > 0 and start_fat > 0 %}
+            {{ (start_fat - current_fat) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Total Lean Mass Delta"
+        unique_id: body_total_lean_mass_delta
+        unit_of_measurement: "kg"
+        icon: mdi:arm-flex
+        state_class: measurement
+        state: >-
+          {% set start_lbm = states('input_number.body_start_lbm_kg') | float(75.90) %}
+          {% set current_lbm = states('sensor.karl_lundgren_lean_body_mass') | float(0) %}
+          {% if current_lbm > 0 and start_lbm > 0 %}
+            {{ (current_lbm - start_lbm) | round(2) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # Group G: Rolling Kinetics & Forbes' Rule Efficacy
+      # 7-Day Rolling
+      - name: "Body Forbes Lean Loss Ratio 7d"
+        unique_id: body_forbes_lean_loss_ratio_7d
+        unit_of_measurement: "%"
+        icon: mdi:scale-balance
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_7d') | float(0) %}
+          {% set lbm_chg = states('sensor.body_lbm_change_7d') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set lbm_loss = -lbm_chg %}
+          {% if total_loss >= 0.3 %}
+            {{ ((lbm_loss / total_loss) * 100) | round(1) }}
+          {% else %}
+            unavailable
+          {% endif %}
+        attributes:
+          status: >-
+            {% set w_chg = states('sensor.body_weight_change_7d') | float(0) %}
+            {% set lbm_chg = states('sensor.body_lbm_change_7d') | float(0) %}
+            {% set total_loss = -w_chg %}
+            {% set lbm_loss = -lbm_chg %}
+            {% if total_loss < 0.3 %}
+              Insufficient delta (<0.3 kg loss)
+            {% elif lbm_loss <= 0 %}
+              Recomposition (Lean Mass Maintained/Gained)
+            {% elif (lbm_loss / total_loss) <= 0.15 %}
+              Optimal Lean Preservation (<15%)
+            {% elif (lbm_loss / total_loss) <= 0.25 %}
+              Acceptable (15-25%)
+            {% else %}
+              Elevated Lean Loss (>25% - Check Protein/Deficit)
+            {% endif %}
+
+      - name: "Body Fat Loss Quality 7d"
+        unique_id: body_fat_loss_quality_7d
+        unit_of_measurement: "%"
+        icon: mdi:check-decagram
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_7d') | float(0) %}
+          {% set lbm_chg = states('sensor.body_lbm_change_7d') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set lbm_loss = -lbm_chg %}
+          {% set fat_loss = total_loss - lbm_loss %}
+          {% if total_loss >= 0.3 %}
+            {{ ((fat_loss / total_loss) * 100) | round(1) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Weekly Loss Rate 7d"
+        unique_id: body_weekly_loss_rate_7d
+        unit_of_measurement: "%/wk"
+        icon: mdi:speedometer
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_7d') | float(0) %}
+          {% set curr_w = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set past_w = curr_w + total_loss %}
+          {% if total_loss > 0 and past_w > 0 %}
+            {{ ((total_loss / past_w) * 100) | round(2) }}
+          {% else %}
+            0.0
+          {% endif %}
+
+      # 14-Day Rolling
+      - name: "Body Forbes Lean Loss Ratio 14d"
+        unique_id: body_forbes_lean_loss_ratio_14d
+        unit_of_measurement: "%"
+        icon: mdi:scale-balance
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_14d') | float(0) %}
+          {% set lbm_chg = states('sensor.body_lbm_change_14d') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set lbm_loss = -lbm_chg %}
+          {% if total_loss >= 0.5 %}
+            {{ ((lbm_loss / total_loss) * 100) | round(1) }}
+          {% else %}
+            unavailable
+          {% endif %}
+        attributes:
+          status: >-
+            {% set w_chg = states('sensor.body_weight_change_14d') | float(0) %}
+            {% set lbm_chg = states('sensor.body_lbm_change_14d') | float(0) %}
+            {% set total_loss = -w_chg %}
+            {% set lbm_loss = -lbm_chg %}
+            {% if total_loss < 0.5 %}
+              Insufficient delta (<0.5 kg loss)
+            {% elif lbm_loss <= 0 %}
+              Recomposition (Lean Mass Maintained/Gained)
+            {% elif (lbm_loss / total_loss) <= 0.15 %}
+              Optimal Lean Preservation (<15%)
+            {% elif (lbm_loss / total_loss) <= 0.25 %}
+              Acceptable (15-25%)
+            {% else %}
+              Elevated Lean Loss (>25% - Check Protein/Deficit)
+            {% endif %}
+
+      - name: "Body Fat Loss Quality 14d"
+        unique_id: body_fat_loss_quality_14d
+        unit_of_measurement: "%"
+        icon: mdi:check-decagram
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_14d') | float(0) %}
+          {% set lbm_chg = states('sensor.body_lbm_change_14d') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set lbm_loss = -lbm_chg %}
+          {% set fat_loss = total_loss - lbm_loss %}
+          {% if total_loss >= 0.5 %}
+            {{ ((fat_loss / total_loss) * 100) | round(1) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Weekly Loss Rate 14d"
+        unique_id: body_weekly_loss_rate_14d
+        unit_of_measurement: "%/wk"
+        icon: mdi:speedometer
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_14d') | float(0) %}
+          {% set curr_w = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set past_w = curr_w + total_loss %}
+          {% if total_loss > 0 and past_w > 0 %}
+            {{ (((total_loss / past_w) * 100) / 2.0) | round(2) }}
+          {% else %}
+            0.0
+          {% endif %}
+
+      - name: "Body Projected Goal Date 14d"
+        unique_id: body_projected_goal_date_14d
+        icon: mdi:calendar-check
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_14d') | float(0) %}
+          {% set rem_w = states('sensor.body_remaining_weight_to_target') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% if total_loss > 0.2 and rem_w > 0 %}
+            {% set daily_rate = total_loss / 14.0 %}
+            {% set days_needed = (rem_w / daily_rate) | int %}
+            {{ (now() + timedelta(days=days_needed)).strftime('%Y-%m-%d') }}
+          {% else %}
+            Calculating...
+          {% endif %}
+
+      # 30-Day Rolling
+      - name: "Body Forbes Lean Loss Ratio 30d"
+        unique_id: body_forbes_lean_loss_ratio_30d
+        unit_of_measurement: "%"
+        icon: mdi:scale-balance
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_30d') | float(0) %}
+          {% set lbm_chg = states('sensor.body_lbm_change_30d') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set lbm_loss = -lbm_chg %}
+          {% if total_loss >= 0.5 %}
+            {{ ((lbm_loss / total_loss) * 100) | round(1) }}
+          {% else %}
+            unavailable
+          {% endif %}
+        attributes:
+          status: >-
+            {% set w_chg = states('sensor.body_weight_change_30d') | float(0) %}
+            {% set lbm_chg = states('sensor.body_lbm_change_30d') | float(0) %}
+            {% set total_loss = -w_chg %}
+            {% set lbm_loss = -lbm_chg %}
+            {% if total_loss < 0.5 %}
+              Insufficient delta (<0.5 kg loss)
+            {% elif lbm_loss <= 0 %}
+              Recomposition (Lean Mass Maintained/Gained)
+            {% elif (lbm_loss / total_loss) <= 0.15 %}
+              Optimal Lean Preservation (<15%)
+            {% elif (lbm_loss / total_loss) <= 0.25 %}
+              Acceptable (15-25%)
+            {% else %}
+              Elevated Lean Loss (>25% - Check Protein/Deficit)
+            {% endif %}
+
+      - name: "Body Fat Loss Quality 30d"
+        unique_id: body_fat_loss_quality_30d
+        unit_of_measurement: "%"
+        icon: mdi:check-decagram
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_30d') | float(0) %}
+          {% set lbm_chg = states('sensor.body_lbm_change_30d') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set lbm_loss = -lbm_chg %}
+          {% set fat_loss = total_loss - lbm_loss %}
+          {% if total_loss >= 0.5 %}
+            {{ ((fat_loss / total_loss) * 100) | round(1) }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      - name: "Body Weekly Loss Rate 30d"
+        unique_id: body_weekly_loss_rate_30d
+        unit_of_measurement: "%/wk"
+        icon: mdi:speedometer
+        state_class: measurement
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_30d') | float(0) %}
+          {% set curr_w = states('sensor.karl_lundgren_weight') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% set past_w = curr_w + total_loss %}
+          {% if total_loss > 0 and past_w > 0 %}
+            {{ (((total_loss / past_w) * 100) / (30.0 / 7.0)) | round(2) }}
+          {% else %}
+            0.0
+          {% endif %}
+
+      - name: "Body Projected Goal Date 30d"
+        unique_id: body_projected_goal_date_30d
+        icon: mdi:calendar-check
+        state: >-
+          {% set w_chg = states('sensor.body_weight_change_30d') | float(0) %}
+          {% set rem_w = states('sensor.body_remaining_weight_to_target') | float(0) %}
+          {% set total_loss = -w_chg %}
+          {% if total_loss > 0.5 and rem_w > 0 %}
+            {% set daily_rate = total_loss / 30.0 %}
+            {% set days_needed = (rem_w / daily_rate) | int %}
+            {{ (now() + timedelta(days=days_needed)).strftime('%Y-%m-%d') }}
+          {% else %}
+            Calculating...
+          {% endif %}
+
   - sensor:
       - name: "EMHASS SOC For MPC"
         unique_id: emhass_soc_for_mpc
@@ -873,6 +1505,81 @@ template:
 # Riemann-sum energy sensors (power → kWh for Energy Dashboard)
 # ---------------------------------------------------------------------------
 sensor:
+  # ---------------------------------------------------------------------------
+  # Rolling Statistics for Body Metrics (7-day, 14-day, and 30-day windows)
+  # ---------------------------------------------------------------------------
+  - platform: statistics
+    name: "Body Weight Change 7d"
+    unique_id: body_weight_change_7d
+    entity_id: sensor.karl_lundgren_weight
+    state_characteristic: change
+    max_age:
+      days: 7
+
+  - platform: statistics
+    name: "Body Weight Change 14d"
+    unique_id: body_weight_change_14d
+    entity_id: sensor.karl_lundgren_weight
+    state_characteristic: change
+    max_age:
+      days: 14
+
+  - platform: statistics
+    name: "Body Weight Change 30d"
+    unique_id: body_weight_change_30d
+    entity_id: sensor.karl_lundgren_weight
+    state_characteristic: change
+    max_age:
+      days: 30
+
+  - platform: statistics
+    name: "Body LBM Change 7d"
+    unique_id: body_lbm_change_7d
+    entity_id: sensor.karl_lundgren_lean_body_mass
+    state_characteristic: change
+    max_age:
+      days: 7
+
+  - platform: statistics
+    name: "Body LBM Change 14d"
+    unique_id: body_lbm_change_14d
+    entity_id: sensor.karl_lundgren_lean_body_mass
+    state_characteristic: change
+    max_age:
+      days: 14
+
+  - platform: statistics
+    name: "Body LBM Change 30d"
+    unique_id: body_lbm_change_30d
+    entity_id: sensor.karl_lundgren_lean_body_mass
+    state_characteristic: change
+    max_age:
+      days: 30
+
+  - platform: statistics
+    name: "Body Fat Change 7d"
+    unique_id: body_fat_change_7d
+    entity_id: sensor.body_fat_mass_absolute
+    state_characteristic: change
+    max_age:
+      days: 7
+
+  - platform: statistics
+    name: "Body Fat Change 14d"
+    unique_id: body_fat_change_14d
+    entity_id: sensor.body_fat_mass_absolute
+    state_characteristic: change
+    max_age:
+      days: 14
+
+  - platform: statistics
+    name: "Body Fat Change 30d"
+    unique_id: body_fat_change_30d
+    entity_id: sensor.body_fat_mass_absolute
+    state_characteristic: change
+    max_age:
+      days: 30
+
   - platform: integration
     source: sensor.hp_heating_power
     name: HP Heating Energy

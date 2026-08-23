@@ -9,6 +9,7 @@ configMapGenerator:
       - configuration.yaml
       - automations.yaml
       - dashboards/ev-charging.yaml
+      - dashboards/body-composition.yaml
 resources:
   - namespace.yaml
   - helm-release.yaml

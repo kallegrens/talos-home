@@ -110,6 +110,14 @@ spec:
         mountPath: /config/dashboards/ev-charging.yaml
         subPath: ev-charging.yaml
 
+      repo-body-dashboard:
+        enabled: true
+        type: configmap
+        objectName: home-assistant-config-files
+        expandObjectName: false
+        mountPath: /config/dashboards/body-composition.yaml
+        subPath: body-composition.yaml
+
     cnpg:
       main:
         cluster:
