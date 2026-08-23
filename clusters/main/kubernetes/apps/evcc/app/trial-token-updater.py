@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import base64
 import json
+import logging
 import os
 import re
 import signal
 import sqlite3
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -20,9 +22,14 @@ RETRY_INTERVAL = 5 * 60         # 5 minutes on error
 SETTINGS_KEY = "sponsorToken"
 MIN_VALIDITY_SECONDS = 3600    # Require at least 1h remaining validity
 
-
-def log(msg: str) -> None:
-    print(f"[trial-token-updater] {msg}", flush=True)
+# Configure standard logging to stdout with timestamp and loglevel
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("trial-token-updater")
 
 
 def decode_jwt_payload(token: str) -> dict:
@@ -66,6 +73,13 @@ def fetch_published_token() -> tuple[str, dict]:
                 if exp <= int(time.time()) + MIN_VALIDITY_SECONDS:
                     continue
 
+                exp_str = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(exp))
+                remaining = exp - int(time.time())
+                logger.info(
+                    f"Fetched published trial token from {url}\n"
+                    f"  Expires: {exp_str} ({remaining // 86400}d {(remaining % 86400) // 3600}h remaining)\n"
+                    f"  Token:   {candidate}"
+                )
                 return candidate, payload
 
         except Exception as e:
@@ -146,31 +160,30 @@ def find_evcc_pid() -> int | None:
 def restart_evcc() -> None:
     pid = find_evcc_pid()
     if pid is None:
-        log("evcc process not found; token will be loaded when evcc starts")
+        logger.warning("evcc process not found; token will be loaded when evcc starts")
         return
-    log(f"Sending SIGTERM to evcc (PID {pid}) to trigger restart...")
+    logger.info(f"Sending SIGTERM to evcc (PID {pid}) to trigger restart...")
     os.kill(pid, signal.SIGTERM)
 
 
 def check() -> bool:
     token, payload = fetch_published_token()
-    exp = int(payload["exp"])
-    remaining = exp - int(time.time())
-    log(
-        f"Fetched valid trial token (expires in "
-        f"{remaining // 86400}d {(remaining % 86400) // 3600}h)"
-    )
 
     current = get_current_token()
+    if current:
+        logger.info(f"Current token in SQLite DB:\n  Token:   {current}")
+    else:
+        logger.info("No existing sponsorToken found in SQLite DB.")
+
     if current == token:
-        log("Database token matches published token. No update required.")
+        logger.info("Database token matches published token. No update required.")
         return True
 
     if current:
         try:
             curr_payload = decode_jwt_payload(current)
             if curr_payload.get("sub") != "trial":
-                log(
+                logger.warning(
                     f"Existing sponsorToken is non-trial (sub='{curr_payload.get('sub')}'). "
                     "Skipping update to preserve lifetime/custom token."
                 )
@@ -178,21 +191,21 @@ def check() -> bool:
         except Exception:
             pass  # Malformed or expired token in DB; safe to replace
 
-    log("Writing new trial token to SQLite database...")
+    logger.info(f"Writing new trial token to SQLite database:\n  Token:   {token}")
     update_db_token(token)
-    log("Database updated successfully.")
+    logger.info("Database updated successfully.")
     restart_evcc()
     return True
 
 
 def main() -> None:
-    log(f"Started. Monitoring {DOCS_URLS[0]} -> {DB_PATH}")
+    logger.info(f"Started. Monitoring {DOCS_URLS[0]} -> {DB_PATH}")
     while True:
         try:
             success = check()
             sleep_time = CHECK_INTERVAL if success else RETRY_INTERVAL
         except Exception as err:
-            log(f"Check failed: {err}")
+            logger.error(f"Check failed: {err}")
             sleep_time = RETRY_INTERVAL
 
         time.sleep(sleep_time)
