@@ -786,15 +786,19 @@ template:
           {% endif %}
 
   # ---------------------------------------------------------------------------
-  # Mower rain / lawn-dryness sensors
+  # Mower rain / lawn-dryness sensors (Conservative fail-safe physics & dew model)
   # ---------------------------------------------------------------------------
   # Trigger-based: recomputes every 5 min and whenever a key input changes.
-  # Physics model:
-  #   T_dry = 0.5 h/mm × event_mm × f_temp × f_hum × f_solar
-  #   f_temp  = e^(-(T_out - 20) × 0.04)  — colder → slower evaporation
-  #   f_hum   = max(0.5, 1 + (H - 60)/100) — more humid → slower
-  #   f_solar = max(0.4, 1 - R/600)        — more sun → faster (600 W/m² = full sun)
-  #   Wetness = max(0, (T_dry - Δt) / T_dry × 100)
+  # Physics & Dew model:
+  #   - Immediate 100% wetness if active rain, recent rain > 0.2mm, high humidity,
+  #     or dew point depression (T - T_dew) < 2.0°C.
+  #   - Target drying time:
+  #       T_dry = (2.5h base + 0.75h/mm × event_mm) × f_temp × f_hum × f_solar × f_wind
+  #       f_temp  = max(0.7, e^(-(T - 20) × 0.05))  — colder → slower
+  #       f_hum   = max(0.6, 1 + (H - 50)/50)       — more humid → slower
+  #       f_solar = max(0.5, 1 - (R/800) × 0.5)     — more sun → faster
+  #       f_wind  = max(0.6, 1 - (W/10) × 0.4)      — more wind → faster
+  #       Wetness = max(0, (T_dry - Δt) / T_dry × 100)
   - trigger:
       - trigger: time_pattern
         minutes: "/5"
@@ -802,9 +806,15 @@ template:
         entity_id:
           - input_datetime.mower_rain_stop_time
           - input_number.mower_rain_event_mm
+          - input_boolean.mower_rain_forecast
           - sensor.wsmihp2550_pro_v1_6_9_outdoor_temperature
+          - sensor.wsmihp2550_pro_v1_6_9_dewpoint
           - sensor.wsmihp2550_pro_v1_6_9_humidity
           - sensor.wsmihp2550_pro_v1_6_9_solar_radiation
+          - sensor.wsmihp2550_pro_v1_6_9_wind_speed
+          - sensor.wsmihp2550_pro_v1_6_9_rain_rate
+          - sensor.wsmihp2550_pro_v1_6_9_hourly_rain
+          - sensor.wsmihp2550_pro_v1_6_9_daily_rain
     sensor:
       - name: "Mower Lawn Wetness"
         unique_id: mower_lawn_wetness
@@ -814,17 +824,25 @@ template:
         state: >-
           {% set rain_stop = states('input_datetime.mower_rain_stop_time') %}
           {% set event_mm = states('input_number.mower_rain_event_mm') | float(0) %}
-          {% if rain_stop in ('unknown', 'unavailable') or event_mm <= 0 %}
+          {% set T = states('sensor.wsmihp2550_pro_v1_6_9_outdoor_temperature') | float(15) %}
+          {% set T_dew = states('sensor.wsmihp2550_pro_v1_6_9_dewpoint') | float(15) %}
+          {% set H = states('sensor.wsmihp2550_pro_v1_6_9_humidity') | float(70) %}
+          {% set R = states('sensor.wsmihp2550_pro_v1_6_9_solar_radiation') | float(0) %}
+          {% set W = states('sensor.wsmihp2550_pro_v1_6_9_wind_speed') | float(0) %}
+          {% set rain_rate = states('sensor.wsmihp2550_pro_v1_6_9_rain_rate') | float(0) %}
+          {% set hourly_rain = states('sensor.wsmihp2550_pro_v1_6_9_hourly_rain') | float(0) %}
+          {% set daily_rain = states('sensor.wsmihp2550_pro_v1_6_9_daily_rain') | float(0) %}
+          {% if rain_rate > 0.1 or hourly_rain >= 0.2 or H >= 88.0 or (T - T_dew) < 2.0 or daily_rain >= 12.0 %}
+            100
+          {% elif rain_stop in ('unknown', 'unavailable') or event_mm <= 0 %}
             0
           {% else %}
-            {% set T = states('sensor.wsmihp2550_pro_v1_6_9_outdoor_temperature') | float(15) %}
-            {% set H = states('sensor.wsmihp2550_pro_v1_6_9_humidity') | float(70) %}
-            {% set R = states('sensor.wsmihp2550_pro_v1_6_9_solar_radiation') | float(0) %}
             {% set delta_h = (as_timestamp(now()) - as_timestamp(rain_stop)) / 3600 %}
-            {% set f_temp = (2.71828 ** (-(T - 20) * 0.04)) %}
-            {% set f_hum = [1 + (H - 60) / 100, 0.5] | max %}
-            {% set f_solar = [1 - R / 600, 0.4] | max %}
-            {% set t_dry = [0.5 * event_mm * f_temp * f_hum * f_solar, 0.1] | max %}
+            {% set f_temp = [(2.71828 ** (-(T - 20) * 0.05)), 0.7] | max %}
+            {% set f_hum = [1 + (H - 50) / 50, 0.6] | max %}
+            {% set f_solar = [1 - (R / 800) * 0.5, 0.5] | max %}
+            {% set f_wind = [1 - (W / 10) * 0.4, 0.6] | max %}
+            {% set t_dry = (2.5 + 0.75 * event_mm) * f_temp * f_hum * f_solar * f_wind %}
             {{ [((t_dry - delta_h) / t_dry * 100) | round(1), 0] | max }}
           {% endif %}
 
@@ -833,9 +851,23 @@ template:
         unique_id: mower_ok_to_mow
         icon: mdi:lawn-mower
         state: >-
-          {{ states('sensor.mower_lawn_wetness') | float(100) <= 5
-             and states('sensor.wsmihp2550_pro_v1_6_9_rain_rate') | float(0) < 0.2
-             and not is_state('input_boolean.mower_rain_forecast', 'on') }}
+          {% set wetness = states('sensor.mower_lawn_wetness') | float(100) %}
+          {% set rain_rate = states('sensor.wsmihp2550_pro_v1_6_9_rain_rate') | float(0) %}
+          {% set hourly_rain = states('sensor.wsmihp2550_pro_v1_6_9_hourly_rain') | float(0) %}
+          {% set daily_rain = states('sensor.wsmihp2550_pro_v1_6_9_daily_rain') | float(0) %}
+          {% set T = states('sensor.wsmihp2550_pro_v1_6_9_outdoor_temperature') | float(15) %}
+          {% set T_dew = states('sensor.wsmihp2550_pro_v1_6_9_dewpoint') | float(15) %}
+          {% set H = states('sensor.wsmihp2550_pro_v1_6_9_humidity') | float(70) %}
+          {% set R = states('sensor.wsmihp2550_pro_v1_6_9_solar_radiation') | float(0) %}
+          {% set rain_fc = is_state('input_boolean.mower_rain_forecast', 'on') %}
+          {{ wetness <= 0
+             and rain_rate < 0.1
+             and hourly_rain < 0.2
+             and daily_rain < 12.0
+             and (T - T_dew) >= 3.0
+             and H <= 80.0
+             and R >= 30.0
+             and not rain_fc }}
 
 # ---------------------------------------------------------------------------
 # Riemann-sum energy sensors (power → kWh for Energy Dashboard)

@@ -1091,22 +1091,41 @@
   mode: restart
 
 # ===========================================================================
-# Mower Rain Management
+# Mower Rain & Wet Lawn Management (Fail-Safe & Conservative)
 # ===========================================================================
 
 - id: "1770700000040"
-  alias: "Mower: Park on rain"
+  alias: "Mower: Park on rain or wet lawn"
   description: >-
-    Parks Skalman immediately when the Ecowitt station detects rain above
-    0.2 mm/h. Sets mower_rain_override so it won't auto-resume until the
-    lawn dryness model clears.
+    Parks Skalman using gardena_smart_system.mower_park (PARK_UNTIL_NEXT_TASK)
+    whenever rain is detected (rain_rate > 0.1 mm/h) or when the mower starts
+    mowing while the lawn is wet / dew point is too close / not OK to mow.
+    Fail-safe: parks for the current task only, so if Home Assistant goes offline,
+    Gardena automatically resumes on its next scheduled task.
   triggers:
     - trigger: numeric_state
       entity_id: sensor.wsmihp2550_pro_v1_6_9_rain_rate
-      above: 0.2
-  conditions: []
+      above: 0.1
+    - trigger: state
+      entity_id: lawn_mower.skalman_lawn_mower
+      to: "mowing"
+    - trigger: state
+      entity_id: binary_sensor.mower_ok_to_mow
+      to: "off"
+  conditions:
+    - condition: state
+      entity_id: lawn_mower.skalman_lawn_mower
+      state: "mowing"
+    - condition: or
+      conditions:
+        - condition: numeric_state
+          entity_id: sensor.wsmihp2550_pro_v1_6_9_rain_rate
+          above: 0.1
+        - condition: state
+          entity_id: binary_sensor.mower_ok_to_mow
+          state: "off"
   actions:
-    - action: gardena_smart_system.mower_park_until_notice
+    - action: gardena_smart_system.mower_park
       data:
         device_id: "98fbcef5-6355-40d6-b7b5-a51b929575eb"
     - action: input_boolean.turn_on
@@ -1117,18 +1136,21 @@
 - id: "1770700000041"
   alias: "Mower: Record rain stop"
   description: >-
-    When rain_rate stays below 0.2 mm/h for 5 continuous minutes, snapshots
-    the stop time and the Ecowitt event_rain total. The Mower Lawn Wetness
-    sensor uses these to model how long the lawn needs to dry.
+    When rain_rate stays below 0.1 mm/h for 10 continuous minutes, snapshots
+    the stop time and the maximum of Ecowitt event_rain and hourly_rain. The
+    Mower Lawn Wetness sensor uses these with dew point, temperature, humidity,
+    solar radiation, and wind to model lawn drying time.
   triggers:
     - trigger: numeric_state
       entity_id: sensor.wsmihp2550_pro_v1_6_9_rain_rate
-      below: 0.2
-      for: "00:05:00"
+      below: 0.1
+      for: "00:10:00"
   conditions:
-    - condition: state
-      entity_id: input_boolean.mower_rain_override
-      state: "on"
+    - condition: template
+      value_template: >-
+        {{ states('sensor.wsmihp2550_pro_v1_6_9_hourly_rain') | float(0) > 0
+           or states('sensor.wsmihp2550_pro_v1_6_9_event_rain') | float(0) > 0
+           or is_state('input_boolean.mower_rain_override', 'on') }}
   actions:
     - action: input_datetime.set_datetime
       target:
@@ -1139,18 +1161,18 @@
       target:
         entity_id: input_number.mower_rain_event_mm
       data:
-        value: "{{ states('sensor.wsmihp2550_pro_v1_6_9_event_rain') | float(0) }}"
+        value: "{{ [states('sensor.wsmihp2550_pro_v1_6_9_event_rain') | float(0), states('sensor.wsmihp2550_pro_v1_6_9_hourly_rain') | float(0), states('input_number.mower_rain_event_mm') | float(0)] | max }}"
   mode: single
 
 - id: "1770700000042"
   alias: "Mower: Rain forecast check"
   description: >-
-    Runs every hour and at HA startup. Fetches the next 4 hours of hourly
+    Runs every 30 minutes and at HA startup. Fetches the next 3 hours of hourly
     forecast from met.no. Sets mower_rain_forecast if any hour has
-    precipitation_probability > 40 % or precipitation > 0.5 mm.
+    precipitation_probability > 25 % or precipitation > 0.2 mm.
   triggers:
     - trigger: time_pattern
-      hours: "/1"
+      minutes: "/30"
     - trigger: homeassistant
       event: start
   conditions: []
@@ -1161,11 +1183,11 @@
         type: hourly
       response_variable: forecast_data
     - variables:
-        next_4h: >-
-          {{ forecast_data['weather.forecast_home']['forecast'][:4] }}
+        next_3h: >-
+          {{ forecast_data['weather.forecast_home']['forecast'][:3] }}
         rain_expected: >-
-          {{ next_4h | selectattr('precipitation_probability', '>', 40) | list | length > 0
-             or next_4h | selectattr('precipitation', '>', 0.5) | list | length > 0 }}
+          {{ next_3h | selectattr('precipitation_probability', '>', 25) | list | length > 0
+             or next_3h | selectattr('precipitation', '>', 0.2) | list | length > 0 }}
     - choose:
         - conditions:
             - condition: template
@@ -1181,18 +1203,16 @@
   mode: single
 
 - id: "1770700000043"
-  alias: "Mower: Resume when dry"
+  alias: "Mower: Clear rain override when dry"
   description: >-
-    When binary_sensor.mower_ok_to_mow turns on (lawn dry, no rain, no
-    forecast) and the mower was parked by the rain automation, resumes
-    the mower's internal schedule. Also triggers at 07:00 to catch cases
-    where the sensor was already on before daylight hours.
+    When binary_sensor.mower_ok_to_mow turns on (lawn dry, dew cleared, no rain, no
+    imminent forecast), clears the rain override helper. If the mower was previously
+    parked by rain, unpauses Gardena's automatic schedule with mower_start
+    (START_DONT_OVERRIDE) so Gardena continues normal operations.
   triggers:
     - trigger: state
       entity_id: binary_sensor.mower_ok_to_mow
       to: "on"
-    - trigger: time
-      at: "07:00:00"
   conditions:
     - condition: state
       entity_id: input_boolean.mower_rain_override
@@ -1200,9 +1220,6 @@
     - condition: state
       entity_id: binary_sensor.mower_ok_to_mow
       state: "on"
-    - condition: time
-      after: "07:00:00"
-      before: "20:00:00"
   actions:
     - action: gardena_smart_system.mower_start
       data:
