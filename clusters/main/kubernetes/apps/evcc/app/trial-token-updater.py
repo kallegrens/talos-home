@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import base64
+import binascii
 import json
 import logging
 import os
@@ -18,9 +19,9 @@ DOCS_URLS = [
 ]
 DB_PATH = "/root/.evcc/evcc.db"
 CHECK_INTERVAL = 12 * 60 * 60  # 12 hours on success
-RETRY_INTERVAL = 5 * 60         # 5 minutes on error
+RETRY_INTERVAL = 5 * 60  # 5 minutes on error
 SETTINGS_KEY = "sponsorToken"
-MIN_VALIDITY_SECONDS = 3600    # Require at least 1h remaining validity
+MIN_VALIDITY_SECONDS = 3600  # Require at least 1h remaining validity
 
 # Configure standard logging to stdout with timestamp and loglevel
 logging.basicConfig(
@@ -60,7 +61,15 @@ def fetch_published_token() -> tuple[str, dict]:
             for candidate in jwt_pattern.findall(html):
                 try:
                     payload = decode_jwt_payload(candidate)
-                except Exception:
+                except (
+                    ValueError,
+                    json.JSONDecodeError,
+                    binascii.Error,
+                    UnicodeDecodeError,
+                ):
+                    logger.debug(
+                        f"Candidate string is not a valid JWT payload: {candidate[:15]}..."
+                    )
                     continue
 
                 if payload.get("sub") != "trial":
@@ -82,8 +91,9 @@ def fetch_published_token() -> tuple[str, dict]:
                 )
                 return candidate, payload
 
-        except Exception as e:
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
             last_error = e
+            logger.debug(f"Failed fetching from {url}: {e}")
             continue
 
     raise RuntimeError(
@@ -148,7 +158,9 @@ def find_evcc_pid() -> int | None:
             continue
         try:
             with open(f"/proc/{pid}/cmdline", "rb") as f:
-                cmdline = f.read().replace(b"\0", b" ").decode("utf-8", errors="replace")
+                cmdline = (
+                    f.read().replace(b"\0", b" ").decode("utf-8", errors="replace")
+                )
             cmd = cmdline.strip().split(" ", 1)[0]
             if cmd == "evcc" or cmd.endswith("/evcc"):
                 return pid
@@ -167,7 +179,7 @@ def restart_evcc() -> None:
 
 
 def check() -> bool:
-    token, payload = fetch_published_token()
+    token, _ = fetch_published_token()
 
     current = get_current_token()
     if current:
@@ -188,8 +200,13 @@ def check() -> bool:
                     "Skipping update to preserve lifetime/custom token."
                 )
                 return True
-        except Exception:
-            pass  # Malformed or expired token in DB; safe to replace
+        except (
+            ValueError,
+            json.JSONDecodeError,
+            binascii.Error,
+            UnicodeDecodeError,
+        ) as err:
+            logger.debug(f"Could not decode existing database token as JWT: {err}")
 
     logger.info(f"Writing new trial token to SQLite database:\n  Token:   {token}")
     update_db_token(token)
@@ -204,7 +221,14 @@ def main() -> None:
         try:
             success = check()
             sleep_time = CHECK_INTERVAL if success else RETRY_INTERVAL
-        except Exception as err:
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            OSError,
+            sqlite3.Error,
+            ValueError,
+            RuntimeError,
+        ) as err:
             logger.error(f"Check failed: {err}")
             sleep_time = RETRY_INTERVAL
 
