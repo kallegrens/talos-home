@@ -144,7 +144,7 @@ spec:
 
     ingress:
       app:
-        className: internal
+        className: external
         annotations:
           cert-manager.io/cluster-issuer: domain-0-le-prod
         hosts:
