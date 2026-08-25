@@ -1,16 +1,30 @@
 title: Body Composition
 views:
+  # ===========================================================================
+  # VIEW 1: Fat Loss & Recomposition Dashboard
+  # ===========================================================================
   - title: Fat Loss & Recomposition
     path: recomposition
     icon: mdi:scale-bathroom
     type: sections
     max_columns: 3
     sections:
-      # =======================================================================
+      # -----------------------------------------------------------------------
       # Section 1: Hero & Velocity Overview
-      # =======================================================================
+      # -----------------------------------------------------------------------
       - title: Transformation Overview
         cards:
+          - type: markdown
+            content: >-
+              <details>
+              <summary>ℹ️ <b>Overview & Projections Guide</b></summary>
+
+              - **Current Weight**: Scale weight at 116.2 kg (Start: 120.0 kg).
+              - **Target**: 85.0 kg at 16% body fat (Target Fat Mass: 13.6 kg).
+              - **Projected Date**: Estimated milestone date based on rolling 30-day velocity.
+              - **Fat vs. Lean Delta**: Cumulative fat mass lost vs. lean mass change since start.
+              </details>
+
           - type: tile
             entity: sensor.karl_lundgren_weight
             name: Current Scale Weight
@@ -27,7 +41,7 @@ views:
 
           - type: tile
             entity: sensor.body_projected_goal_date_30d
-            name: Projected Finish (30d Rate)
+            name: Projected Goal Date (30d Rate)
             icon: mdi:calendar-check
             color: purple
             vertical: false
@@ -53,11 +67,21 @@ views:
             color: cyan
             vertical: false
 
-      # =======================================================================
+      # -----------------------------------------------------------------------
       # Section 2: Recomposition Truth Charts (LTS Graphs)
-      # =======================================================================
+      # -----------------------------------------------------------------------
       - title: Recomposition Truth Charts
         cards:
+          - type: markdown
+            content: >-
+              <details>
+              <summary>ℹ️ <b>How to Read the Recomposition Charts</b></summary>
+
+              - **The Goal**: The **Fat Mass** line should slope downward toward ~13.6 kg, while the **Body Cell Mass (BCM)** line stays flat.
+              - **Why BCM?**: BCM isolates active biological cells from water and glycogen. If total weight drops but BCM stays flat, **100% of the loss came from fat/fluid, with zero muscle loss**.
+              - **Dry Lean Mass (DLBM)**: Strips out water to verify true protein structure retention.
+              </details>
+
           - type: statistics-graph
             title: "Recomposition: Fat Mass vs Body Cell Mass (30d)"
             entities:
@@ -80,11 +104,25 @@ views:
             days_to_show: 30
             chart_type: line
 
-      # =======================================================================
+      # -----------------------------------------------------------------------
       # Section 3: Forbes' Rule & Loss Quality (7d, 14d, 30d)
-      # =======================================================================
+      # -----------------------------------------------------------------------
       - title: Forbes' Rule & Loss Quality
         cards:
+          - type: markdown
+            content: >-
+              <details>
+              <summary>ℹ️ <b>Forbes' Rule & Quality Benchmarks</b></summary>
+
+              - **Forbes Lean Mass Loss %**: The percentage of lost weight that came from lean tissue.
+                - 🟢 **< 15% (Optimal)**: Excellent muscle retention (>85% fat loss).
+                - 🟡 **15% – 25% (Acceptable)**: Standard calorie deficit rate.
+                - 🔴 **> 25% (High Lean Loss)**: Deficit is too aggressive or protein is too low.
+                - 🔵 **< 0% (Recomposition)**: You lost fat and gained lean mass!
+              - **Fat Loss Quality %**: Inverse of Forbes—percentage of lost weight that is pure fat (Goal: >85%).
+              - **Weekly Loss Rate (% WoW)**: Safe limit is **0.5% – 1.0%** of body weight per week (~0.6 – 1.1 kg/wk).
+              </details>
+
           - type: gauge
             entity: sensor.body_forbes_lean_loss_ratio_30d
             name: "30-Day Lean Mass Loss % (Forbes)"
@@ -132,11 +170,23 @@ views:
               - entity: sensor.body_fat_loss_quality_30d
                 name: "30-Day Fat Loss Quality %"
 
-      # =======================================================================
+      # -----------------------------------------------------------------------
       # Section 4: Muscle Preservation & Key Ratios
-      # =======================================================================
+      # -----------------------------------------------------------------------
       - title: Muscle Preservation & Ratios
         cards:
+          - type: markdown
+            content: >-
+              <details>
+              <summary>ℹ️ <b>Muscle Metrics & Ratio Explanations</b></summary>
+
+              - **Fat to Skeletal Muscle Ratio**: Ratio of fat mass to contractile muscle. Target: decrease from ~1.16 toward **< 0.50**.
+              - **Skeletal Muscle to Fat Ratio (SMR)**: Muscle per 1 kg fat. Target: increase from ~0.86 to **> 1.50** (athletic threshold >1.0).
+              - **Body Cell Mass (BCM)**: Living cellular tissue (muscle + vital organs).
+              - **Skeletal Muscle Mass (SMM)**: Contractile muscle tissue attached to skeleton.
+              - **Dry Lean Mass (DLBM)**: Protein and bone matrix without fluid fluctuations.
+              </details>
+
           - type: gauge
             entity: sensor.body_fat_to_smm_ratio
             name: Fat to Skeletal Muscle Ratio
@@ -195,11 +245,24 @@ views:
             icon: mdi:scale-balance
             color: indigo
 
-      # =======================================================================
+      # -----------------------------------------------------------------------
       # Section 5: Hydration & Inflammation Noise Filters
-      # =======================================================================
+      # -----------------------------------------------------------------------
       - title: Hydration & Noise Filter
         cards:
+          - type: markdown
+            content: >-
+              <details>
+              <summary>ℹ️ <b>Hydration & Water Retention Filter</b></summary>
+
+              - **ECW / TBW Ratio (Fluid Distribution)**:
+                - 🟢 **< 38.5%**: Optimal cellular hydration & low inflammation.
+                - 🟡 **38.5% – 39.5%**: Normal baseline range.
+                - 🔴 **> 39.5%**: Elevated extracellular fluid (diet stress, high sodium, DOMS from workouts, cortisol).
+                - *Action*: If scale weight spikes overnight and ECW/TBW jumps, it is **100% water retention**, not fat gain. Do not cut calories.
+              - **ICW / ECW Ratio**: Ratio of water inside muscle cells vs outside. High ratio ($>1.5$) indicates well-hydrated, glycogen-replete muscle cells.
+              </details>
+
           - type: gauge
             entity: sensor.karl_lundgren_ecw_tbw_ratio
             name: ECW / TBW Ratio (Fluid Distribution)
@@ -236,11 +299,27 @@ views:
             icon: mdi:water-percent
             color: blue
 
-      # =======================================================================
+      # -----------------------------------------------------------------------
       # Section 6: Physique Standards & Athletic Indices
-      # =======================================================================
+      # -----------------------------------------------------------------------
       - title: Physique Standards & Indices
         cards:
+          - type: markdown
+            content: >-
+              <details>
+              <summary>ℹ️ <b>Physique Standards & FFMI</b></summary>
+
+              - **FFMI (Fat-Free Mass Index)**: Lean mass scaled to height ($LBM / Height^2$).
+                - **< 18**: Low lean mass
+                - **18 – 20**: Average
+                - **20 – 22**: Athletic / Well-trained
+                - **22 – 25**: Elite natural muscularity (Your current: ~22.6)
+                - *Goal*: Keep FFMI **> 21.5** throughout weight loss to retain muscle foundation.
+              - **Normalized FFMI**: Standardized to 1.80 m athletic reference.
+              - **FMI (Fat Mass Index)**: Fat mass scaled to height (Target: 3.0–6.0 kg/m²).
+              - **SMI (Skeletal Muscle Index)**: Skeletal muscle scaled to height (Target: >9.0 kg/m²).
+              </details>
+
           - type: gauge
             entity: sensor.body_ffmi
             name: Fat-Free Mass Index (FFMI)
@@ -282,11 +361,21 @@ views:
             icon: mdi:star-circle
             color: amber
 
-      # =======================================================================
+      # -----------------------------------------------------------------------
       # Section 7: Metabolic Baselines & Energy Deficit
-      # =======================================================================
+      # -----------------------------------------------------------------------
       - title: Metabolic Baselines & Deficit
         cards:
+          - type: markdown
+            content: >-
+              <details>
+              <summary>ℹ️ <b>Metabolic Baselines & Calorie Targets</b></summary>
+
+              - **Dynamic Katch-McArdle BMR**: Baseline energy expenditure based on active lean tissue ($370 + 21.6 \times LBM$).
+              - **Dynamic TDEE**: Total daily energy expenditure ($\text{BMR} \times 1.375\text{ activity factor}$).
+              - **Target Calorie Intake**: Recommended daily caloric intake ($\text{TDEE} - 500\text{ kcal}$) for steady ~0.5–0.7 kg/week fat loss.
+              </details>
+
           - type: tile
             entity: sensor.body_bmr_katch_mcardle
             name: Dynamic BMR (Katch-McArdle)
@@ -335,9 +424,9 @@ views:
             icon: mdi:calendar-account
             color: purple
 
-      # =======================================================================
+      # -----------------------------------------------------------------------
       # Section 8: Interactive Target Tuning
-      # =======================================================================
+      # -----------------------------------------------------------------------
       - title: Transformation Settings
         cards:
           - type: tile
@@ -431,3 +520,95 @@ views:
                         value: "{{ value }}"
                       target:
                         entity_id: input_number.body_target_deficit_kcal
+
+  # ===========================================================================
+  # VIEW 2: Complete Metric Glossary & Reference Guide
+  # ===========================================================================
+  - title: Metric Glossary & Guide
+    path: glossary
+    icon: mdi:book-open-page-variant
+    type: sections
+    max_columns: 2
+    sections:
+      - title: 1. True Muscle & Tissue Isolators
+        cards:
+          - type: markdown
+            title: Cellular & Contractile Muscle Tissue
+            content: >-
+              ### **Body Cell Mass (BCM)**
+              * **What it is**: The total weight of all living, metabolically active cells (skeletal muscle, cardiac muscle, smooth muscle, and organ cells), completely excluding body water, fat, and bone minerals.
+              * **Why it matters**: BCM is the **gold standard clinical marker** for muscle retention. As you lose 30+ kg, your total scale weight will drop rapidly, but your BCM line should stay flat. If BCM drops, you are losing living cell tissue.
+
+              ---
+
+              ### **Skeletal Muscle Mass (SMM)**
+              * **What it is**: The voluntary muscle tissue attached to your skeleton that you build and protect with resistance training.
+              * **Skeletal Muscle %**: $(\text{SMM} / \text{Weight}) \times 100$. This percentage will naturally climb as fat mass is shed.
+
+              ---
+
+              ### **Dry Lean Body Mass (DLBM)**
+              * **What it is**: Lean Body Mass minus Total Body Water ($\text{LBM} - \text{TBW}$).
+              * **Why it matters**: Standard scales often claim you "lost 1.5 kg of muscle" in 2 days when you cut carbohydrates or train hard because muscle is ~73% water and glycogen stores drop. DLBM strips out fluid noise to monitor real structural protein mass.
+
+      - title: 2. Forbes' Rule & Loss Kinetics
+        cards:
+          - type: markdown
+            title: Forbes' Rule & Rate of Loss
+            content: >-
+              ### **Forbes' Rule ($\Delta$FFM Lean Mass Loss %)**
+              * **Formula**: $(\Delta \text{Lean Mass} / \Delta \text{Total Weight}) \times 100$
+              * **Interpretation**:
+                * 🟢 **< 15% (Optimal)**: Over 85% of weight lost came strictly from body fat. Muscle is fully protected.
+                * 🟡 **15% – 25% (Acceptable)**: Standard calorie deficit rate without heavy lifting.
+                * 🔴 **> 25% (High Lean Loss Alert)**: Caloric deficit is too large or protein intake is insufficient. Increase calories or protein.
+                * 🔵 **< 0% (Body Recomposition)**: You burned fat and built muscle simultaneously!
+
+              ---
+
+              ### **Weekly Rate of Loss (% WoW)**
+              * **Target**: **0.5% – 1.0%** of total body weight per week.
+              * **Why**: Academic sports science literature proves that losing $>1.0\%$ of body weight per week mathematically forces the body to catabolize skeletal muscle for fuel. At 116 kg, optimal loss is ~0.6–1.1 kg/wk.
+
+      - title: 3. Recomposition Ratios & Hydration
+        cards:
+          - type: markdown
+            title: Balance Ratios & Hydration Noise
+            content: >-
+              ### **Fat to Skeletal Muscle Ratio**
+              * **Current**: ~1.16 (1.16 kg fat for every 1.0 kg muscle).
+              * **Goal**: Decrease toward **< 0.50** (twice as much muscle as fat).
+
+              ---
+
+              ### **Skeletal Muscle to Fat Ratio (SMR)**
+              * **Current**: ~0.86.
+              * **Goal**: Increase above **> 1.50** (athletic standard >1.0).
+
+              ---
+
+              ### **ECW / TBW Ratio (Fluid Distribution)**
+              * **Normal Range**: $36.0\% - 39.0\%$.
+              * **Interpretation**: Extracellular water (outside cells) divided by total water.
+                * **> 39.5%**: High systemic inflammation, cortisol (diet stress), delayed onset muscle soreness (DOMS), or sodium retention.
+                * **Scale Spikes**: If scale weight jumps +1.5 kg overnight and ECW/TBW jumps, it is **100% water retention**, not fat.
+
+      - title: 4. Physique Indices & Metabolic Baseline
+        cards:
+          - type: markdown
+            title: FFMI & Dynamic Energy Needs
+            content: >-
+              ### **Fat-Free Mass Index (FFMI)**
+              * **Formula**: $\text{LBM (kg)} / \text{Height (m)}^2$.
+              * **Classification**:
+                * **< 18**: Below average muscularity
+                * **18 – 20**: Average
+                * **20 – 22**: Athletic / Well-trained
+                * **22 – 25**: Elite natural muscularity (Your baseline: ~22.6)
+              * **Goal**: Keep FFMI **> 21.5** as you drop toward 85 kg.
+
+              ---
+
+              ### **Dynamic Katch-McArdle BMR**
+              * **Formula**: $370 + (21.6 \times \text{LBM})$.
+              * **Why it's better**: Unlike standard Mifflin-St Jeor or scale estimates which overpredict calories for high body mass, Katch-McArdle is based strictly on metabolic lean tissue. It automatically updates your baseline energy needs every time you weigh in.
