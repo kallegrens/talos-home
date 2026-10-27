@@ -14,7 +14,7 @@ spec:
         name: truecharts
         namespace: flux-system
       interval: 15m
-  timeout: 20m
+  timeout: 60m
   maxHistory: 3
   driftDetection:
     mode: warn
@@ -66,6 +66,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
       data:
@@ -79,6 +80,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
       movies:

@@ -104,6 +104,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
         annotations:
           longhorn.io/recurring-job-selector: "[{\"name\":\"trim-caches\",\"isGroup\":true}]"
       library:
@@ -120,6 +121,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
         annotations:
           longhorn.io/recurring-job-selector: "[{\"name\":\"trim-caches\",\"isGroup\":true}]"
       backups:
@@ -147,6 +149,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
       video:
         type: nfs
         server: ${NFS_IP}

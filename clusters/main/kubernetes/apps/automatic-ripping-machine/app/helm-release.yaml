@@ -71,6 +71,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
       config:
@@ -83,6 +84,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
       audio:

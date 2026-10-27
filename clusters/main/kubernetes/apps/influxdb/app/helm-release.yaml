@@ -122,6 +122,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
         mountPath: /var/lib/influxdb2
@@ -137,6 +138,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
         mountPath: /etc/influxdb2

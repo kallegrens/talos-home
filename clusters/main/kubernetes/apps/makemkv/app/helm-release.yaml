@@ -65,6 +65,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
               moverSecurityContext:
                 fsGroupChangePolicy: "OnRootMismatch"
       output:

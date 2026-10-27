@@ -105,6 +105,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
       consume:
         enabled: false
       media:
@@ -117,6 +118,7 @@ spec:
               enabled: false
             src:
               enabled: true
+              cacheCapacity: 30Gi
 
     cnpg:
       main:
