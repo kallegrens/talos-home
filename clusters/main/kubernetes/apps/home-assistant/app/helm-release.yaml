@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: home-assistant
-      version: 30.12.6
+      version: 32.0.9
       sourceRef:
         kind: HelmRepository
         name: truecharts
@@ -57,11 +57,6 @@ spec:
             certificateIssuer: domain-0-le-prod
         hosts:
           - host: homeassistant.${DOMAIN_0}
-
-    homeassistant:
-      trusted_proxies:
-        - 172.16.0.0/16
-        - 172.17.0.0/16
 
     credentials:
       b2:
